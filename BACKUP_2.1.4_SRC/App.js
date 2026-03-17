@@ -340,6 +340,9 @@ export default function App() {
   // Reset confirmation modal
   const [resetConfirm, setResetConfirm] = useState(false);
 
+  // Quick log collapsed by default
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
+
   // Load data on mount
   useEffect(() => {
     const loadData = async () => {
@@ -873,9 +876,12 @@ export default function App() {
       <>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="text-blue-400"><Icons.Plane /></div>
-          <h1 className="text-2xl font-bold">UAS Fleet Tracker</h1>
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center text-blue-400"><Icons.Plane /></div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">UAS Fleet Tracker</h1>
+            <div className="text-xs text-gray-500">{stats.total} aircraft · {stats.active} active</div>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative">
@@ -969,31 +975,22 @@ export default function App() {
       {currentView === 'fleet' && (
       <>
       {/* Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
-        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 border-l-4 border-l-blue-500">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Fleet</div>
           <div className="text-3xl font-bold text-white">{stats.total}</div>
-          <div className="text-gray-400 text-sm">Total Aircraft</div>
         </div>
-        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className="text-3xl font-bold text-white">{stats.active}</span>
-          </div>
-          <div className="text-gray-400 text-sm">Active</div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 border-l-4 border-l-green-500">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Active</div>
+          <div className="text-3xl font-bold text-green-400">{stats.active}</div>
         </div>
-        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span className="text-3xl font-bold text-white">{stats.maintenance}</span>
-          </div>
-          <div className="text-gray-400 text-sm">In Maintenance</div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 border-l-4 border-l-red-500">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Maintenance</div>
+          <div className="text-3xl font-bold text-red-400">{stats.maintenance}</div>
         </div>
-        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gray-500"></div>
-            <span className="text-3xl font-bold text-white">{stats.grounded}</span>
-          </div>
-          <div className="text-gray-400 text-sm">Grounded</div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 border-l-4 border-l-gray-500">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Grounded</div>
+          <div className="text-3xl font-bold text-gray-400">{stats.grounded}</div>
         </div>
       </div>
 
@@ -1065,98 +1062,98 @@ export default function App() {
         </div>
       )}
 
-      {/* Quick Flight Log */}
-      <div className="bg-gray-800 rounded-2xl p-5 mb-8 border border-gray-700 shadow-lg">
-        <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Quick Flight Log</div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <select
-            value={quickLogAircraft}
-            onChange={(e) => setQuickLogAircraft(e.target.value)}
-            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-          >
-            <option value="">Select Aircraft</option>
-            {aircraft.filter(a => a.status === 'active').map(a => (
-              <option key={a.id} value={a.id}>{a.name} ({a.totalHours} hrs)</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            placeholder="Hours"
-            value={quickLogHours}
-            onChange={(e) => setQuickLogHours(e.target.value)}
-            className="w-full sm:w-24 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-          />
-          <input
-            type="date"
-            value={quickLogDate}
-            max={new Date().toLocaleDateString('en-CA')}
-            onChange={(e) => setQuickLogDate(e.target.value)}
-            className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-          />
-          <button
-            onClick={handleQuickLog}
-            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition whitespace-nowrap"
-          >
-            <Icons.Clock /> Log Flight
-          </button>
-        </div>
+      {/* Quick Flight Log — collapsible */}
+      <div className="bg-gray-800 rounded-xl mb-6 border border-gray-700 overflow-hidden">
+        <button
+          onClick={() => setQuickLogOpen(!quickLogOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-750 transition"
+        >
+          <div className="flex items-center gap-2 text-xs font-medium text-gray-400 uppercase tracking-wider">
+            <Icons.Clock /> Quick Flight Log
+          </div>
+          <span className={`text-gray-500 text-xs transition-transform ${quickLogOpen ? 'rotate-180' : ''}`}>▼</span>
+        </button>
+        {quickLogOpen && (
+          <div className="px-4 pb-4 border-t border-gray-700">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-3">
+              <select
+                value={quickLogAircraft}
+                onChange={(e) => setQuickLogAircraft(e.target.value)}
+                className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Select Aircraft</option>
+                {aircraft.filter(a => a.status === 'active').map(a => (
+                  <option key={a.id} value={a.id}>{a.name} ({a.totalHours} hrs)</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Hours"
+                value={quickLogHours}
+                onChange={(e) => setQuickLogHours(e.target.value)}
+                className="w-full sm:w-24 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <input
+                type="date"
+                value={quickLogDate}
+                max={new Date().toLocaleDateString('en-CA')}
+                onChange={(e) => setQuickLogDate(e.target.value)}
+                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={handleQuickLog}
+                className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap"
+              >
+                <Icons.Check /> Log
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Filter Tabs & Data Management */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-1 bg-gray-800 rounded-lg p-1 border border-gray-700">
           {['all', 'active', 'maintenance', 'grounded'].map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-lg font-medium transition capitalize ${
-                filter === f 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition capitalize ${
+                filter === f
+                  ? 'bg-gray-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {f}
+              {f === 'all' ? `All (${stats.total})` :
+               f === 'active' ? `Active (${stats.active})` :
+               f === 'maintenance' ? `Maint (${stats.maintenance})` :
+               `Down (${stats.grounded})`}
             </button>
           ))}
         </div>
         <div className="flex-1"></div>
-        <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={handleImportJSON}
-            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-gray-400 transition text-sm"
-          >
-            <Icons.Upload /> Import
+        <div className="flex gap-1">
+          <button onClick={handleImportJSON} className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition" title="Import JSON">
+            <Icons.Upload />
           </button>
-          <button 
-            onClick={handleExportJSON}
-            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-gray-400 transition text-sm"
-            title="Export JSON backup"
-          >
-            <Icons.Download /> Backup
+          <button onClick={handleExportJSON} className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition" title="Export JSON backup">
+            <Icons.Download />
           </button>
-          <button 
-            onClick={handleExport}
-            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-gray-400 transition text-sm"
-            title="Export CSV spreadsheet"
-          >
-            <Icons.Download /> CSV
+          <button onClick={handleExport} className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition" title="Export CSV">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
           </button>
-          <button 
-            onClick={handleResetData}
-            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-red-900/50 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 transition text-sm"
-            title="Reset to sample data"
-          >
-            <Icons.Trash /> Reset
+          <button onClick={handleResetData} className="p-2 hover:bg-red-900/50 rounded-lg text-gray-500 hover:text-red-400 transition" title="Reset to sample data">
+            <Icons.Trash />
           </button>
         </div>
       </div>
 
       {/* Aircraft Table */}
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-lg overflow-hidden overflow-x-auto">
+      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden overflow-x-auto">
         {/* Table Header */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-700 text-sm text-gray-400 font-medium min-w-[600px] sticky top-0 bg-gray-800 z-10">
+        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-gray-700 text-[11px] text-gray-500 font-semibold uppercase tracking-wider min-w-[600px] sticky top-0 bg-gray-800/95 backdrop-blur z-10">
           <div className="col-span-1">STS</div>
           <div className="col-span-2">Aircraft</div>
           <div className="col-span-2">Type</div>
@@ -1168,8 +1165,10 @@ export default function App() {
 
         {/* Table Body */}
         {filteredAircraft.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            No aircraft found
+          <div className="text-center py-16">
+            <div className="text-gray-600 text-3xl mb-2">✈</div>
+            <div className="text-gray-500 font-medium">No aircraft found</div>
+            <div className="text-gray-600 text-sm mt-1">{searchTerm ? 'Try a different search term' : 'Add aircraft to get started'}</div>
           </div>
         ) : (
           filteredAircraft.map((a, index) => {
@@ -1219,57 +1218,58 @@ export default function App() {
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div className="px-4 py-4 bg-gray-850 border-t border-gray-700">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                           <Icons.Cpu /> Flight Controller
                         </div>
                         <div className="text-sm font-medium">{a.flightController}</div>
-                        <div className="text-xs text-gray-500">{a.fcFirmware || 'No firmware info'}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{a.fcFirmware || 'No firmware info'}</div>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
-                          <Icons.Cpu /> Companion Computer
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                          <Icons.Cpu /> Companion
                         </div>
                         <div className="text-sm font-medium">{a.companionComputer}</div>
-                        <div className="text-xs text-gray-500">{a.companionOS || 'N/A'}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{a.companionOS || 'N/A'}</div>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
-                          <Icons.Radio /> Radio Config
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                          <Icons.Radio /> Radio
                         </div>
-                        <div className="text-sm font-medium">Primary: {a.primaryRadio}</div>
-                        <div className="text-xs text-gray-500">Backup: {a.backupRadio}</div>
+                        <div className="text-sm font-medium">{a.primaryRadio}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">Backup: {a.backupRadio}</div>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                           <Icons.Weight /> Weight
                         </div>
-                        <div className="text-sm font-medium">{a.weight} lbs ({lbsToKg(a.weight)} kg) / {a.maxWeight} lbs ({lbsToKg(a.maxWeight)} kg) MTOW</div>
-                        <div className="text-xs text-gray-500">Payload: {(a.maxWeight - a.weight).toFixed(1)} lbs ({lbsToKg(a.maxWeight - a.weight)} kg) available</div>
+                        <div className="text-sm font-medium">{a.weight} lbs <span className="text-gray-500">({lbsToKg(a.weight)} kg)</span></div>
+                        <div className="text-xs text-gray-500 mt-0.5">MTOW: {a.maxWeight} lbs · Payload: {(a.maxWeight - a.weight).toFixed(1)} lbs</div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-1">Last Flight</div>
-                        <div className="text-sm">{a.lastFlight}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Last Flight</div>
+                        <div className="text-sm font-medium">{a.lastFlight}</div>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-1">Location</div>
-                        <div className="text-sm">{a.location || '-'}</div>
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Location</div>
+                        <div className="text-sm font-medium">{a.location || '-'}</div>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase mb-1">Maintenance Status</div>
-                        <div className="text-sm">
+                      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Maintenance</div>
+                        <div className="text-sm font-medium">
                           {hoursRemaining < 0 ? (
-                            <span className="text-red-400 font-bold">OVERDUE by {Math.abs(hoursRemaining).toFixed(1)} hrs</span>
+                            <span className="text-red-400">OVERDUE {Math.abs(hoursRemaining).toFixed(1)} hrs</span>
                           ) : hoursRemaining === 0 ? (
-                            <span className="text-red-400 font-bold">DUE NOW (interval: {a.maintenanceInterval} hrs)</span>
+                            <span className="text-red-400">DUE NOW</span>
                           ) : (
-                            <span>{hoursRemaining.toFixed(1)} hrs until service (interval: {a.maintenanceInterval} hrs)</span>
+                            <span>{hoursRemaining.toFixed(1)} hrs remaining</span>
                           )}
                         </div>
+                        <div className="text-xs text-gray-500 mt-0.5">Interval: {a.maintenanceInterval} hrs</div>
                       </div>
                     </div>
 
