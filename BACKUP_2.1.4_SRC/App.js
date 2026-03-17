@@ -715,158 +715,245 @@ export default function App() {
   // Export PDF Fleet Report
   const handleExportPDF = () => {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 14;
-    let y = 16;
+    const pw = doc.internal.pageSize.getWidth();
+    const m = 14; // margin
+    const rw = pw - m * 2; // row width
+    let y = 0;
 
-    const addPage = () => { doc.addPage(); y = 16; };
-    const checkPage = (needed) => { if (y + needed > 275) addPage(); };
+    const checkPage = (needed) => { if (y + needed > 280) { doc.addPage(); y = 14; } };
 
-    // --- HEADER ---
-    doc.setFillColor(17, 24, 39);
-    doc.rect(0, 0, pageWidth, 32, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    // Colors
+    const black = [30, 30, 30];
+    const dark = [55, 65, 75];
+    const mid = [120, 130, 140];
+    const light = [180, 185, 192];
+    const white = [255, 255, 255];
+    const green = [22, 163, 74];
+    const red = [200, 40, 40];
+    const amber = [180, 130, 0];
+    const gray = [120, 120, 120];
+    const headerBg = [25, 35, 50];
+    const rowAlt = [245, 247, 250];
+    const rowWhite = [255, 255, 255];
+    const tableBorder = [210, 215, 220];
+
+    // === HEADER BANNER ===
+    doc.setFillColor(...headerBg);
+    doc.rect(0, 0, pw, 36, 'F');
+    // Title
+    doc.setTextColor(...white);
+    doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text('UAS Fleet Report', margin, 14);
+    doc.text('UAS FLEET REPORT', m, 16);
+    // Subtitle
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(156, 163, 175);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 21);
-    doc.text(`${aircraft.length} aircraft | ${stats.active} active | ${stats.maintenance} maintenance | ${stats.grounded} grounded`, margin, 27);
-    y = 38;
+    doc.setTextColor(180, 190, 210);
+    doc.text(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), m, 24);
+    doc.text(`${new Date().toLocaleTimeString()}`, m, 30);
+    y = 44;
 
-    // --- STATUS SUMMARY BAR ---
-    const barY = y;
-    const barH = 6;
-    const barW = pageWidth - margin * 2;
-    const greenW = stats.total > 0 ? (stats.active / stats.total) * barW : 0;
-    const redW = stats.total > 0 ? (stats.maintenance / stats.total) * barW : 0;
-    const grayW = barW - greenW - redW;
-    doc.setFillColor(34, 197, 94); doc.rect(margin, barY, greenW, barH, 'F');
-    doc.setFillColor(239, 68, 68); doc.rect(margin + greenW, barY, redW, barH, 'F');
-    doc.setFillColor(107, 114, 128); doc.rect(margin + greenW + redW, barY, grayW, barH, 'F');
-    y = barY + barH + 8;
+    // === FLEET SUMMARY CARDS ===
+    const cardW = (rw - 9) / 4;
+    const cards = [
+      { label: 'Total Fleet', value: stats.total, color: headerBg },
+      { label: 'Active', value: stats.active, color: green },
+      { label: 'Maintenance', value: stats.maintenance, color: red },
+      { label: 'Grounded', value: stats.grounded, color: gray }
+    ];
+    cards.forEach((card, i) => {
+      const cx = m + i * (cardW + 3);
+      // Card bg
+      doc.setFillColor(248, 249, 252);
+      doc.roundedRect(cx, y, cardW, 20, 2, 2, 'F');
+      // Left accent
+      doc.setFillColor(...card.color);
+      doc.rect(cx, y + 2, 2.5, 16, 'F');
+      // Value
+      doc.setTextColor(...black);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(card.value), cx + 8, y + 11);
+      // Label
+      doc.setTextColor(...mid);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(card.label.toUpperCase(), cx + 8, y + 17);
+    });
+    y += 28;
 
-    // --- MAINTENANCE ALERTS ---
+    // === STATUS BAR with legend ===
+    const barH = 5;
+    const greenW = stats.total > 0 ? (stats.active / stats.total) * rw : 0;
+    const redW = stats.total > 0 ? (stats.maintenance / stats.total) * rw : 0;
+    const grayW = Math.max(0, rw - greenW - redW);
+    doc.setFillColor(...green); doc.roundedRect(m, y, greenW || 0.1, barH, 1, 1, 'F');
+    if (redW > 0) { doc.setFillColor(...red); doc.rect(m + greenW, y, redW, barH, 'F'); }
+    if (grayW > 0) { doc.setFillColor(...gray); doc.roundedRect(m + greenW + redW, y, grayW, barH, 1, 1, 'F'); }
+    y += barH + 2;
+    // Legend
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    const legendItems = [
+      { label: `Active (${stats.active})`, color: green },
+      { label: `Maintenance (${stats.maintenance})`, color: red },
+      { label: `Grounded (${stats.grounded})`, color: gray }
+    ];
+    let lx = m;
+    legendItems.forEach(item => {
+      doc.setFillColor(...item.color);
+      doc.circle(lx + 1.5, y + 1, 1.5, 'F');
+      doc.setTextColor(...dark);
+      doc.text(item.label, lx + 5, y + 2);
+      lx += 40;
+    });
+    y += 8;
+
+    // === MAINTENANCE ALERTS ===
     const overdue = aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active');
     const approaching = aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active');
 
     if (overdue.length > 0 || approaching.length > 0) {
-      doc.setFontSize(10);
+      doc.setFillColor(255, 245, 245);
+      const alertH = (overdue.length + approaching.length) * 5 + 10;
+      doc.roundedRect(m, y, rw, alertH, 2, 2, 'F');
+      doc.setDrawColor(230, 180, 180);
+      doc.roundedRect(m, y, rw, alertH, 2, 2, 'S');
+
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(239, 68, 68);
-      doc.text('MAINTENANCE ALERTS', margin, y);
-      y += 6;
+      doc.setTextColor(...red);
+      doc.text('MAINTENANCE ALERTS', m + 4, y + 6);
+      y += 10;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       overdue.forEach(a => {
-        doc.setTextColor(239, 68, 68);
-        doc.text(`OVERDUE: ${a.name} — ${(a.totalHours - a.maintenanceInterval).toFixed(1)} hrs past interval`, margin + 2, y);
-        y += 4.5;
+        doc.setTextColor(...red);
+        doc.text(`■  OVERDUE: ${a.name} — ${(a.totalHours - a.maintenanceInterval).toFixed(1)} hrs past interval`, m + 6, y);
+        y += 5;
       });
       approaching.forEach(a => {
-        doc.setTextColor(234, 179, 8);
-        doc.text(`DUE SOON: ${a.name} — ${(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs remaining`, margin + 2, y);
-        y += 4.5;
+        doc.setTextColor(...amber);
+        doc.text(`▲  DUE SOON: ${a.name} — ${(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs remaining`, m + 6, y);
+        y += 5;
       });
       y += 4;
     }
 
-    // --- AIRCRAFT TABLE ---
-    doc.setFontSize(10);
+    // === AIRCRAFT TABLE ===
+    // Section header
+    doc.setFillColor(...headerBg);
+    doc.roundedRect(m, y, rw, 8, 2, 2, 'F');
+    doc.setTextColor(...white);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.setFillColor(31, 41, 55);
-    doc.rect(0, y - 4, pageWidth, 8, 'F');
-    doc.text('FLEET ROSTER', margin, y + 1);
-    y += 8;
+    doc.text('FLEET ROSTER', m + 4, y + 5.5);
+    y += 12;
 
-    // Table header
-    const cols = [margin, 42, 70, 94, 118, 140, 166];
-    const colLabels = ['Aircraft', 'Type', 'Status', 'Hours', 'To Maint', 'Radio', 'Location'];
-    doc.setFillColor(31, 41, 55);
-    doc.rect(margin - 1, y - 3.5, pageWidth - margin * 2 + 2, 6, 'F');
-    doc.setFontSize(7);
+    // Table columns
+    const cols = [m, m + 30, m + 58, m + 82, m + 100, m + 122, m + 150];
+    const colLabels = ['AIRCRAFT', 'TYPE', 'STATUS', 'HOURS', 'TO MAINT', 'RADIO', 'LOCATION'];
+
+    // Table header row
+    doc.setFillColor(235, 238, 242);
+    doc.rect(m, y - 4, rw, 7, 'F');
+    doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(156, 163, 175);
+    doc.setTextColor(...dark);
     colLabels.forEach((label, i) => doc.text(label, cols[i], y));
+    // Header bottom line
+    doc.setDrawColor(...tableBorder);
+    doc.setLineWidth(0.3);
+    doc.line(m, y + 2.5, m + rw, y + 2.5);
     y += 6;
 
     // Table rows
-    doc.setFont('helvetica', 'normal');
     aircraft.forEach((a, idx) => {
-      checkPage(18);
+      checkPage(22);
 
-      // Alternating row bg
-      if (idx % 2 === 0) {
-        doc.setFillColor(24, 30, 40);
-        doc.rect(margin - 1, y - 3.5, pageWidth - margin * 2 + 2, 5.5, 'F');
-      }
+      const rowY = y - 3.5;
+      // Alternating rows
+      doc.setFillColor(...(idx % 2 === 0 ? rowWhite : rowAlt));
+      doc.rect(m, rowY, rw, 6, 'F');
 
       const hoursLeft = a.maintenanceInterval - a.totalHours;
-      doc.setFontSize(7.5);
 
-      // Name
-      doc.setTextColor(229, 231, 235);
+      // Name — bold black
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...black);
       doc.text(a.name || '-', cols[0], y);
 
-      doc.setFont('helvetica', 'normal');
       // Type
-      doc.setTextColor(156, 163, 175);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...dark);
       doc.text(a.airframeType || '-', cols[1], y);
 
-      // Status with color
-      if (a.status === 'active') doc.setTextColor(34, 197, 94);
-      else if (a.status === 'maintenance') doc.setTextColor(239, 68, 68);
-      else doc.setTextColor(107, 114, 128);
+      // Status — colored
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      if (a.status === 'active') doc.setTextColor(...green);
+      else if (a.status === 'maintenance') doc.setTextColor(...red);
+      else doc.setTextColor(...gray);
       doc.text(a.status.toUpperCase(), cols[2], y);
 
       // Hours
-      doc.setTextColor(229, 231, 235);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...black);
       doc.text(a.totalHours.toFixed(1), cols[3], y);
 
-      // To Maint
-      if (hoursLeft < 0) doc.setTextColor(239, 68, 68);
-      else if (hoursLeft <= 20) doc.setTextColor(234, 179, 8);
-      else doc.setTextColor(156, 163, 175);
-      doc.text(hoursLeft < 0 ? 'OVERDUE' : hoursLeft.toFixed(1), cols[4], y);
+      // To Maint — colored
+      doc.setFont('helvetica', 'bold');
+      if (hoursLeft < 0) doc.setTextColor(...red);
+      else if (hoursLeft <= 20) doc.setTextColor(...amber);
+      else { doc.setTextColor(...dark); doc.setFont('helvetica', 'normal'); }
+      doc.text(hoursLeft < 0 ? 'OVERDUE' : hoursLeft === 0 ? 'DUE' : hoursLeft.toFixed(1), cols[4], y);
 
       // Radio
-      doc.setTextColor(156, 163, 175);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...dark);
       doc.text(a.primaryRadio || '-', cols[5], y);
 
       // Location
-      doc.text((a.location || '-').substring(0, 16), cols[6], y);
+      doc.text((a.location || '-').substring(0, 14), cols[6], y);
 
-      y += 5.5;
+      y += 6;
 
       // Detail row
       doc.setFontSize(6.5);
-      doc.setTextColor(107, 114, 128);
-      const details = `FC: ${a.flightController || '-'} | ${a.fcFirmware || '-'} | ${a.weight}lbs / ${a.maxWeight}lbs MTOW | Last: ${a.lastFlight || '-'}`;
-      doc.text(details, cols[0] + 2, y);
-      y += 5;
+      doc.setTextColor(...mid);
+      doc.text(`FC: ${a.flightController || '-'}  |  FW: ${a.fcFirmware || '-'}  |  ${a.weight} lbs / ${a.maxWeight} lbs MTOW  |  Last Flight: ${a.lastFlight || '-'}`, cols[0] + 1, y);
+      y += 4.5;
 
       // Notes
       if (a.notes) {
-        doc.setTextColor(130, 130, 150);
-        doc.text(`Notes: ${a.notes.substring(0, 90)}`, cols[0] + 2, y);
-        y += 5;
+        doc.setTextColor(...light);
+        doc.setFontSize(6);
+        doc.text(`${a.notes.substring(0, 100)}`, cols[0] + 1, y);
+        y += 4;
       }
+
+      // Row separator
+      doc.setDrawColor(...tableBorder);
+      doc.setLineWidth(0.15);
+      doc.line(m, y, m + rw, y);
+      y += 2;
     });
 
-    // --- FOOTER ---
+    // === FOOTER ===
+    y += 4;
+    checkPage(12);
+    doc.setDrawColor(...tableBorder);
+    doc.setLineWidth(0.5);
+    doc.line(m, y, m + rw, y);
     y += 6;
-    checkPage(10);
-    doc.setDrawColor(55, 65, 81);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 5;
     doc.setFontSize(7);
-    doc.setTextColor(107, 114, 128);
-    doc.text(`UAS Fleet Tracker v${APP_VERSION}`, margin, y);
-    doc.text(`${aircraft.length} aircraft | Report generated ${new Date().toLocaleDateString()}`, pageWidth - margin, y, { align: 'right' });
+    doc.setTextColor(...mid);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`UAS Fleet Tracker v${APP_VERSION}`, m, y);
+    doc.text(`${aircraft.length} aircraft  |  Generated ${new Date().toLocaleString()}`, m + rw, y, { align: 'right' });
 
     // Save
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
