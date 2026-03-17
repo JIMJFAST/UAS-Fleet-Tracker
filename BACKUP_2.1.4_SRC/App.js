@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
 
 // Version
 const APP_VERSION = '2.1.9';
@@ -711,30 +712,167 @@ export default function App() {
     setExpandedId(expandedId === id ? null : id);
   };
 
-  // Export CSV
-  const handleExport = async () => {
-    const escapeCSV = (val) => {
-      if (val === null || val === undefined) return '';
-      const str = String(val);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-    
-    const headers = ['Name', 'Status', 'Total Hours', 'Maintenance Interval', 'Last Flight', 'Airframe Type', 'Weight', 'Max Weight', 'Flight Controller', 'FC Firmware', 'Companion Computer', 'Companion OS', 'Primary Radio', 'Backup Radio', 'Location', 'Notes'];
-    const rows = aircraft.map(a => [
-      escapeCSV(a.name), a.status, a.totalHours, a.maintenanceInterval, a.lastFlight, 
-      escapeCSV(a.airframeType), a.weight, a.maxWeight, escapeCSV(a.flightController), 
-      escapeCSV(a.fcFirmware), escapeCSV(a.companionComputer), escapeCSV(a.companionOS), 
-      escapeCSV(a.primaryRadio), escapeCSV(a.backupRadio), escapeCSV(a.location), escapeCSV(a.notes)
-    ]);
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const result = await Storage.exportFile(csv, 'csv');
-    if (result.success) {
-      log.data('Exported CSV', `${aircraft.length} aircraft`);
-      showNotification('Fleet data exported', 'success');
+  // Export PDF Fleet Report
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    let y = 16;
+
+    const addPage = () => { doc.addPage(); y = 16; };
+    const checkPage = (needed) => { if (y + needed > 275) addPage(); };
+
+    // --- HEADER ---
+    doc.setFillColor(17, 24, 39);
+    doc.rect(0, 0, pageWidth, 32, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('UAS Fleet Report', margin, 14);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(156, 163, 175);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 21);
+    doc.text(`${aircraft.length} aircraft | ${stats.active} active | ${stats.maintenance} maintenance | ${stats.grounded} grounded`, margin, 27);
+    y = 38;
+
+    // --- STATUS SUMMARY BAR ---
+    const barY = y;
+    const barH = 6;
+    const barW = pageWidth - margin * 2;
+    const greenW = stats.total > 0 ? (stats.active / stats.total) * barW : 0;
+    const redW = stats.total > 0 ? (stats.maintenance / stats.total) * barW : 0;
+    const grayW = barW - greenW - redW;
+    doc.setFillColor(34, 197, 94); doc.rect(margin, barY, greenW, barH, 'F');
+    doc.setFillColor(239, 68, 68); doc.rect(margin + greenW, barY, redW, barH, 'F');
+    doc.setFillColor(107, 114, 128); doc.rect(margin + greenW + redW, barY, grayW, barH, 'F');
+    y = barY + barH + 8;
+
+    // --- MAINTENANCE ALERTS ---
+    const overdue = aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active');
+    const approaching = aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active');
+
+    if (overdue.length > 0 || approaching.length > 0) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(239, 68, 68);
+      doc.text('MAINTENANCE ALERTS', margin, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      overdue.forEach(a => {
+        doc.setTextColor(239, 68, 68);
+        doc.text(`OVERDUE: ${a.name} — ${(a.totalHours - a.maintenanceInterval).toFixed(1)} hrs past interval`, margin + 2, y);
+        y += 4.5;
+      });
+      approaching.forEach(a => {
+        doc.setTextColor(234, 179, 8);
+        doc.text(`DUE SOON: ${a.name} — ${(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs remaining`, margin + 2, y);
+        y += 4.5;
+      });
+      y += 4;
     }
+
+    // --- AIRCRAFT TABLE ---
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.setFillColor(31, 41, 55);
+    doc.rect(0, y - 4, pageWidth, 8, 'F');
+    doc.text('FLEET ROSTER', margin, y + 1);
+    y += 8;
+
+    // Table header
+    const cols = [margin, 42, 70, 94, 118, 140, 166];
+    const colLabels = ['Aircraft', 'Type', 'Status', 'Hours', 'To Maint', 'Radio', 'Location'];
+    doc.setFillColor(31, 41, 55);
+    doc.rect(margin - 1, y - 3.5, pageWidth - margin * 2 + 2, 6, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(156, 163, 175);
+    colLabels.forEach((label, i) => doc.text(label, cols[i], y));
+    y += 6;
+
+    // Table rows
+    doc.setFont('helvetica', 'normal');
+    aircraft.forEach((a, idx) => {
+      checkPage(18);
+
+      // Alternating row bg
+      if (idx % 2 === 0) {
+        doc.setFillColor(24, 30, 40);
+        doc.rect(margin - 1, y - 3.5, pageWidth - margin * 2 + 2, 5.5, 'F');
+      }
+
+      const hoursLeft = a.maintenanceInterval - a.totalHours;
+      doc.setFontSize(7.5);
+
+      // Name
+      doc.setTextColor(229, 231, 235);
+      doc.setFont('helvetica', 'bold');
+      doc.text(a.name || '-', cols[0], y);
+
+      doc.setFont('helvetica', 'normal');
+      // Type
+      doc.setTextColor(156, 163, 175);
+      doc.text(a.airframeType || '-', cols[1], y);
+
+      // Status with color
+      if (a.status === 'active') doc.setTextColor(34, 197, 94);
+      else if (a.status === 'maintenance') doc.setTextColor(239, 68, 68);
+      else doc.setTextColor(107, 114, 128);
+      doc.text(a.status.toUpperCase(), cols[2], y);
+
+      // Hours
+      doc.setTextColor(229, 231, 235);
+      doc.text(a.totalHours.toFixed(1), cols[3], y);
+
+      // To Maint
+      if (hoursLeft < 0) doc.setTextColor(239, 68, 68);
+      else if (hoursLeft <= 20) doc.setTextColor(234, 179, 8);
+      else doc.setTextColor(156, 163, 175);
+      doc.text(hoursLeft < 0 ? 'OVERDUE' : hoursLeft.toFixed(1), cols[4], y);
+
+      // Radio
+      doc.setTextColor(156, 163, 175);
+      doc.text(a.primaryRadio || '-', cols[5], y);
+
+      // Location
+      doc.text((a.location || '-').substring(0, 16), cols[6], y);
+
+      y += 5.5;
+
+      // Detail row
+      doc.setFontSize(6.5);
+      doc.setTextColor(107, 114, 128);
+      const details = `FC: ${a.flightController || '-'} | ${a.fcFirmware || '-'} | ${a.weight}lbs / ${a.maxWeight}lbs MTOW | Last: ${a.lastFlight || '-'}`;
+      doc.text(details, cols[0] + 2, y);
+      y += 5;
+
+      // Notes
+      if (a.notes) {
+        doc.setTextColor(130, 130, 150);
+        doc.text(`Notes: ${a.notes.substring(0, 90)}`, cols[0] + 2, y);
+        y += 5;
+      }
+    });
+
+    // --- FOOTER ---
+    y += 6;
+    checkPage(10);
+    doc.setDrawColor(55, 65, 81);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+    doc.setFontSize(7);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`UAS Fleet Tracker v${APP_VERSION}`, margin, y);
+    doc.text(`${aircraft.length} aircraft | Report generated ${new Date().toLocaleDateString()}`, pageWidth - margin, y, { align: 'right' });
+
+    // Save
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    doc.save(`UAS-Fleet-Report-${timestamp}.pdf`);
+    log.data('Exported PDF', `${aircraft.length} aircraft`);
+    showNotification('Fleet report exported as PDF', 'success');
   };
 
   // Export JSON (full backup)
@@ -1141,7 +1279,7 @@ export default function App() {
           <button onClick={handleExportJSON} className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition" title="Export JSON backup">
             <Icons.Download />
           </button>
-          <button onClick={handleExport} className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition" title="Export CSV">
+          <button onClick={handleExportPDF} className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition" title="Export PDF report">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
           </button>
           <button onClick={handleResetData} className="p-2 hover:bg-red-900/50 rounded-lg text-gray-500 hover:text-red-400 transition" title="Reset to sample data">
