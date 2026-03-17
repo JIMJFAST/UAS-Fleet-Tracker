@@ -1668,271 +1668,231 @@ export default function App() {
 
       {/* ============ METRICS VIEW ============ */}
       {currentView === 'metrics' && (
-      <div className="space-y-6">
-        {/* Fleet Health Score */}
-        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
-          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Fleet Health</div>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <div className="h-4 bg-gray-700 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    stats.total === 0 ? 'bg-gray-600' :
-                    (stats.active / stats.total) >= 0.8 ? 'bg-green-500' :
-                    (stats.active / stats.total) >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: stats.total === 0 ? '0%' : `${(stats.active / stats.total) * 100}%` }}
-                ></div>
-              </div>
+      <div className="space-y-5">
+
+        {/* Row 1: Readiness + Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Fleet Readiness — big number */}
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 flex flex-col items-center justify-center">
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Fleet Readiness</div>
+            <div className={`text-5xl font-bold ${
+              stats.total === 0 ? 'text-gray-600' :
+              (stats.active / stats.total) >= 0.8 ? 'text-green-400' :
+              (stats.active / stats.total) >= 0.5 ? 'text-yellow-400' : 'text-red-400'
+            }`}>
+              {stats.total === 0 ? '—' : Math.round((stats.active / stats.total) * 100)}%
             </div>
-            <div className="text-2xl font-bold">
-              {stats.total === 0 ? '0' : Math.round((stats.active / stats.total) * 100)}% Available
+            <div className="text-sm text-gray-400 mt-2">{stats.active} of {stats.total} ready to fly</div>
+            {/* Mini status breakdown */}
+            <div className="flex gap-4 mt-3 text-xs">
+              <span className="text-green-400">{stats.active} active</span>
+              <span className="text-red-400">{stats.maintenance} maint</span>
+              <span className="text-gray-500">{stats.grounded} down</span>
             </div>
           </div>
-          <div className="text-gray-400 text-sm mt-2">
-            {stats.active} of {stats.total} aircraft ready to fly
+
+          {/* Summary Stats Grid */}
+          <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Fleet Hours</div>
+              <div className="text-2xl font-bold text-white mt-1">{aircraft.reduce((sum, a) => sum + a.totalHours, 0).toFixed(0)}</div>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Hours</div>
+              <div className="text-2xl font-bold text-white mt-1">{aircraft.length > 0 ? (aircraft.reduce((sum, a) => sum + a.totalHours, 0) / aircraft.length).toFixed(1) : '0'}</div>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Availability</div>
+              <div className={`text-2xl font-bold mt-1 ${
+                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a), 0) / aircraft.length) >= 80 ? 'text-green-400' :
+                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a), 0) / aircraft.length) >= 50 ? 'text-yellow-400' : 'text-red-400'
+              }`}>{aircraft.length > 0 ? Math.round(aircraft.reduce((s, a) => s + calculateAvailability(a), 0) / aircraft.length) : '0'}%</div>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Alerts</div>
+              <div className={`text-2xl font-bold mt-1 ${
+                (aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length +
+                 aircraft.filter(a => a.status === 'grounded').length) > 0 ? 'text-red-400' : 'text-green-400'
+              }`}>{
+                aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length +
+                aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').length +
+                aircraft.filter(a => a.status === 'grounded').length +
+                aircraft.filter(a => a.status === 'maintenance').length
+              }</div>
+            </div>
           </div>
         </div>
 
-        {/* Productivity Ranking */}
-        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
-          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Productivity Ranking</div>
-          <div className="space-y-3">
-            {[...aircraft]
-              .sort((a, b) => b.totalHours - a.totalHours)
-              .map((a, index) => {
-                const maxHours = Math.max(...aircraft.map(ac => ac.totalHours), 1);
-                const barWidth = (a.totalHours / maxHours) * 100;
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
-                
-                return (
-                  <div key={a.id} className="flex items-center gap-3">
-                    <div className="w-6 text-center">{medal}</div>
-                    <div className="w-24 font-medium truncate">{a.name}</div>
-                    <div className="flex-1">
-                      <div className="h-6 bg-gray-700 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full flex items-center justify-end pr-2 text-xs font-medium ${
-                            a.status === 'active' ? 'bg-blue-600' :
-                            a.status === 'maintenance' ? 'bg-red-600' : 'bg-gray-600'
-                          }`}
-                          style={{ width: `${Math.max(barWidth, 15)}%` }}
-                        >
-                          {a.totalHours.toFixed(1)}
+        {/* Row 2: Maintenance Forecast */}
+        <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+          <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Maintenance Forecast</div>
+          {aircraft.length === 0 ? (
+            <div className="text-center text-gray-600 py-6">No aircraft</div>
+          ) : (
+            <div className="space-y-2.5">
+              {[...aircraft]
+                .sort((a, b) => (a.maintenanceInterval - a.totalHours) - (b.maintenanceInterval - b.totalHours))
+                .map(a => {
+                  const remaining = a.maintenanceInterval - a.totalHours;
+                  const pct = Math.max(0, Math.min(100, (a.totalHours / a.maintenanceInterval) * 100));
+                  const isOverdue = remaining < 0;
+                  const isDue = remaining <= 0;
+                  const isWarn = remaining > 0 && remaining <= a.maintenanceInterval * 0.2;
+                  return (
+                    <div key={a.id} className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        a.status === 'active' ? 'bg-green-500' : a.status === 'maintenance' ? 'bg-red-500' : 'bg-gray-500'
+                      }`}></div>
+                      <div className="w-24 text-sm font-medium truncate">{a.name}</div>
+                      <div className="flex-1">
+                        <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${
+                            isOverdue ? 'bg-red-500' : isWarn ? 'bg-yellow-500' : 'bg-green-600/70'
+                          }`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
                         </div>
                       </div>
-                    </div>
-                    <div className={`w-20 text-right text-sm ${
-                      a.status === 'active' ? 'text-green-400' :
-                      a.status === 'maintenance' ? 'text-red-400' : 'text-gray-500'
-                    }`}>
-                      {a.status === 'active' ? '● Active' :
-                       a.status === 'maintenance' ? '⚠ Maint' : '⛔ Down'}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-          {aircraft.length === 0 && (
-            <div className="text-center text-gray-500 py-8">No aircraft in fleet</div>
-          )}
-        </div>
-
-        {/* Availability Tracking */}
-        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
-          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Availability Tracking</div>
-          <div className="space-y-4">
-            {[...aircraft]
-              .sort((a, b) => calculateAvailability(b) - calculateAvailability(a))
-              .map(a => {
-                const availability = calculateAvailability(a);
-                const days = calculateStatusDays(a);
-                const daysSinceChange = daysSinceStatusChange(a);
-                
-                return (
-                  <div key={a.id} className="bg-gray-750 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${
-                          a.status === 'active' ? 'bg-green-500' :
-                          a.status === 'maintenance' ? 'bg-red-500' : 'bg-gray-500'
-                        }`}></div>
-                        <span className="font-medium">{a.name}</span>
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        availability >= 80 ? 'text-green-400' :
-                        availability >= 50 ? 'text-yellow-400' : 'text-red-400'
+                      <div className={`w-20 text-right text-xs font-mono font-semibold ${
+                        isOverdue ? 'text-red-400' : isDue ? 'text-red-400' : isWarn ? 'text-yellow-400' : 'text-gray-400'
                       }`}>
-                        {availability}%
+                        {isOverdue ? `OVER ${Math.abs(remaining).toFixed(0)}h` : isDue ? 'DUE' : `${remaining.toFixed(0)}h left`}
                       </div>
                     </div>
-                    
-                    {/* Availability bar */}
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden mb-3">
-                      <div
-                        className={`h-full rounded-full ${
-                          availability >= 80 ? 'progress-green' :
-                          availability >= 50 ? 'progress-yellow' : 'progress-red'
-                        }`}
-                        style={{ width: `${availability}%` }}
-                      ></div>
-                    </div>
-                    
-                    {/* Days breakdown */}
-                    <div className="flex gap-4 text-xs">
-                      <span className="text-green-400">{days.active}d active</span>
-                      <span className="text-red-400">{days.maintenance}d maint</span>
-                      <span className="text-gray-400">{days.grounded}d grounded</span>
-                      <span className="text-gray-500 ml-auto">
-                        {a.status} for {daysSinceChange}d
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-          {aircraft.length === 0 && (
-            <div className="text-center text-gray-500 py-8">No aircraft in fleet</div>
+                  );
+                })}
+            </div>
           )}
+          <div className="flex gap-4 mt-3 pt-3 border-t border-gray-700 text-[10px] text-gray-600">
+            <span><span className="inline-block w-2 h-2 rounded-full bg-green-600/70 mr-1"></span>OK</span>
+            <span><span className="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>Due soon</span>
+            <span><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span>Overdue</span>
+          </div>
         </div>
 
-        {/* Attention Needed */}
-        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
-          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Icons.AlertTriangle /> Attention Needed
-          </div>
-          <div className="space-y-2">
-            {/* Overdue maintenance */}
-            {aircraft
-              .filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active')
-              .map(a => (
-                <div key={`overdue-${a.id}`} className="flex items-center gap-3 text-red-400 bg-red-900/20 rounded-lg px-3 py-2">
-                  <span className="text-red-500">●</span>
-                  <span className="font-medium">{a.name}</span>
-                  <span className="text-sm text-red-300">
-                    overdue for maintenance by {(a.totalHours - a.maintenanceInterval).toFixed(1)} hrs
-                  </span>
-                </div>
-              ))}
-            
-            {/* Due soon */}
-            {aircraft
-              .filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active')
-              .map(a => (
-                <div key={`due-${a.id}`} className="flex items-center gap-3 text-yellow-400 bg-yellow-900/20 rounded-lg px-3 py-2">
-                  <span className="text-yellow-500">●</span>
-                  <span className="font-medium">{a.name}</span>
-                  <span className="text-sm text-yellow-300">
-                    maintenance due in {(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs
-                  </span>
-                </div>
-              ))}
-            
-            {/* Grounded aircraft */}
-            {aircraft
-              .filter(a => a.status === 'grounded')
-              .map(a => {
-                const daysDown = daysSinceStatusChange(a);
-                return (
-                  <div key={`grounded-${a.id}`} className="flex items-center gap-3 text-gray-400 bg-gray-700/50 rounded-lg px-3 py-2">
-                    <span className="text-gray-500">●</span>
-                    <span className="font-medium">{a.name}</span>
-                    <span className="text-sm text-gray-400">
-                      grounded for {daysDown} days {a.statusHistory?.[0]?.reason ? `- ${a.statusHistory[0].reason}` : ''}
-                    </span>
-                  </div>
-                );
-              })}
-            
-            {/* In maintenance */}
-            {aircraft
-              .filter(a => a.status === 'maintenance')
-              .map(a => {
-                const daysDown = daysSinceStatusChange(a);
-                return (
-                  <div key={`maint-${a.id}`} className="flex items-center gap-3 text-orange-400 bg-orange-900/20 rounded-lg px-3 py-2">
-                    <span className="text-orange-500">●</span>
-                    <span className="font-medium">{a.name}</span>
-                    <span className="text-sm text-orange-300">
-                      in maintenance for {daysDown} days {a.statusHistory?.[0]?.reason ? `- ${a.statusHistory[0].reason}` : ''}
-                    </span>
-                  </div>
-                );
-              })}
+        {/* Row 3: Utilization + Availability side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-            {/* Lowest utilization */}
-            {aircraft.length > 2 && (() => {
-              const sorted = [...aircraft].sort((a, b) => a.totalHours - b.totalHours);
-              const lowest = sorted[0];
-              const highest = sorted[sorted.length - 1];
-              if (lowest && highest && lowest.totalHours < highest.totalHours * 0.3 && lowest.status === 'active') {
-                return (
-                  <div className="flex items-center gap-3 text-blue-400 bg-blue-900/20 rounded-lg px-3 py-2">
-                    <span className="text-blue-500">●</span>
-                    <span className="font-medium">{lowest.name}</span>
-                    <span className="text-sm text-blue-300">
-                      lowest utilization ({lowest.totalHours.toFixed(1)} hrs) - review assignment
-                    </span>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-
-            {/* No issues */}
-            {aircraft.filter(a => 
-              a.status !== 'active' || 
-              a.totalHours >= a.maintenanceInterval * 0.8
-            ).length === 0 && aircraft.length > 0 && (
-              <div className="flex items-center gap-3 text-green-400 bg-green-900/20 rounded-lg px-3 py-2">
-                <span className="text-green-500">✓</span>
-                <span>All systems operational - no issues detected</span>
+          {/* Utilization Ranking */}
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Utilization Ranking</div>
+            {aircraft.length === 0 ? (
+              <div className="text-center text-gray-600 py-6">No aircraft</div>
+            ) : (
+              <div className="space-y-2">
+                {[...aircraft]
+                  .sort((a, b) => b.totalHours - a.totalHours)
+                  .map((a, index) => {
+                    const maxHours = Math.max(...aircraft.map(ac => ac.totalHours), 1);
+                    const barWidth = (a.totalHours / maxHours) * 100;
+                    return (
+                      <div key={a.id} className="flex items-center gap-2">
+                        <div className="w-5 text-xs text-gray-600 text-right">{index + 1}</div>
+                        <div className="w-20 text-sm font-medium truncate">{a.name}</div>
+                        <div className="flex-1 h-5 bg-gray-700 rounded overflow-hidden">
+                          <div className={`h-full rounded flex items-center pl-2 text-[10px] font-semibold text-white/90 ${
+                            a.status === 'active' ? 'bg-blue-600' : a.status === 'maintenance' ? 'bg-red-600/80' : 'bg-gray-600'
+                          }`} style={{ width: `${Math.max(barWidth, 20)}%` }}>
+                            {a.totalHours.toFixed(1)}h
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
+          </div>
 
-            {aircraft.length === 0 && (
-              <div className="text-center text-gray-500 py-4">Add aircraft to see metrics</div>
+          {/* Availability Breakdown */}
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Availability Breakdown</div>
+            {aircraft.length === 0 ? (
+              <div className="text-center text-gray-600 py-6">No aircraft</div>
+            ) : (
+              <div className="space-y-3">
+                {[...aircraft]
+                  .sort((a, b) => calculateAvailability(b) - calculateAvailability(a))
+                  .map(a => {
+                    const avail = calculateAvailability(a);
+                    const days = calculateStatusDays(a);
+                    const total = Math.max(days.active + days.maintenance + days.grounded, 1);
+                    return (
+                      <div key={a.id}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              a.status === 'active' ? 'bg-green-500' : a.status === 'maintenance' ? 'bg-red-500' : 'bg-gray-500'
+                            }`}></div>
+                            <span className="text-sm font-medium">{a.name}</span>
+                          </div>
+                          <span className={`text-sm font-bold ${
+                            avail >= 80 ? 'text-green-400' : avail >= 50 ? 'text-yellow-400' : 'text-red-400'
+                          }`}>{avail}%</span>
+                        </div>
+                        {/* Stacked bar: green/red/gray proportional */}
+                        <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden flex">
+                          <div className="h-full bg-green-600" style={{ width: `${(days.active / total) * 100}%` }}></div>
+                          <div className="h-full bg-red-500" style={{ width: `${(days.maintenance / total) * 100}%` }}></div>
+                          <div className="h-full bg-gray-500" style={{ width: `${(days.grounded / total) * 100}%` }}></div>
+                        </div>
+                        <div className="flex gap-3 mt-1 text-[10px] text-gray-600">
+                          <span>{days.active}d active</span>
+                          <span>{days.maintenance}d maint</span>
+                          <span>{days.grounded}d down</span>
+                          <span className="ml-auto">{a.status} {daysSinceStatusChange(a)}d</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Fleet Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-            <div className="text-2xl font-bold text-white">
-              {aircraft.reduce((sum, a) => sum + a.totalHours, 0).toFixed(1)}
-            </div>
-            <div className="text-gray-400 text-sm">Total Fleet Hours</div>
+        {/* Row 4: Action Items */}
+        <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+          <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Icons.AlertTriangle /> Action Items
           </div>
-          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-            <div className="text-2xl font-bold text-white">
-              {aircraft.length > 0 ? (aircraft.reduce((sum, a) => sum + a.totalHours, 0) / aircraft.length).toFixed(1) : '0'}
-            </div>
-            <div className="text-gray-400 text-sm">Avg Hours/Aircraft</div>
-          </div>
-          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-            <div className={`text-2xl font-bold ${
-              aircraft.length > 0 && (aircraft.reduce((sum, a) => sum + calculateAvailability(a), 0) / aircraft.length) >= 80 
-                ? 'text-green-400' 
-                : aircraft.length > 0 && (aircraft.reduce((sum, a) => sum + calculateAvailability(a), 0) / aircraft.length) >= 50
-                ? 'text-yellow-400'
-                : 'text-red-400'
-            }`}>
-              {aircraft.length > 0 ? Math.round(aircraft.reduce((sum, a) => sum + calculateAvailability(a), 0) / aircraft.length) : '0'}%
-            </div>
-            <div className="text-gray-400 text-sm">Avg Availability</div>
-          </div>
-          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-            <div className="text-2xl font-bold text-white">
-              {aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length}
-            </div>
-            <div className="text-gray-400 text-sm">Maintenance Overdue</div>
-          </div>
-          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
-            <div className="text-2xl font-bold text-white">
-              {aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').length}
-            </div>
-            <div className="text-gray-400 text-sm">Maintenance Soon</div>
+          <div className="space-y-1.5">
+            {aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').map(a => (
+              <div key={`o-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-red-900/15 border border-red-900/30">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></div>
+                <span className="text-sm font-medium text-red-300">{a.name}</span>
+                <span className="text-xs text-red-400/80">overdue {(a.totalHours - a.maintenanceInterval).toFixed(1)} hrs</span>
+                <button onClick={() => openStatusChangeModal(a.id, 'maintenance')} className="ml-auto text-xs px-2 py-1 rounded bg-red-600/30 hover:bg-red-600/50 text-red-300 transition">Send to Maint</button>
+              </div>
+            ))}
+            {aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').map(a => (
+              <div key={`w-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-yellow-900/10 border border-yellow-900/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 flex-shrink-0"></div>
+                <span className="text-sm font-medium text-yellow-300">{a.name}</span>
+                <span className="text-xs text-yellow-400/70">{(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs until service</span>
+              </div>
+            ))}
+            {aircraft.filter(a => a.status === 'grounded').map(a => (
+              <div key={`g-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-700/30 border border-gray-700">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-500 flex-shrink-0"></div>
+                <span className="text-sm font-medium text-gray-300">{a.name}</span>
+                <span className="text-xs text-gray-500">grounded {daysSinceStatusChange(a)}d {a.statusHistory?.[0]?.reason ? `— ${a.statusHistory[0].reason}` : ''}</span>
+                <button onClick={() => openStatusChangeModal(a.id, 'active')} className="ml-auto text-xs px-2 py-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-400 transition">Reactivate</button>
+              </div>
+            ))}
+            {aircraft.filter(a => a.status === 'maintenance').map(a => (
+              <div key={`m-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-orange-900/10 border border-orange-900/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0"></div>
+                <span className="text-sm font-medium text-orange-300">{a.name}</span>
+                <span className="text-xs text-orange-400/70">in maintenance {daysSinceStatusChange(a)}d {a.statusHistory?.[0]?.reason ? `— ${a.statusHistory[0].reason}` : ''}</span>
+                <button onClick={() => openStatusChangeModal(a.id, 'active')} className="ml-auto text-xs px-2 py-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-400 transition">Return</button>
+              </div>
+            ))}
+            {aircraft.filter(a => a.status !== 'active' || a.totalHours >= a.maintenanceInterval * 0.8).length === 0 && aircraft.length > 0 && (
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-green-900/10 border border-green-900/20 text-green-400">
+                <Icons.Check />
+                <span className="text-sm">All systems operational — no action required</span>
+              </div>
+            )}
+            {aircraft.length === 0 && (
+              <div className="text-center text-gray-600 py-4">Add aircraft to see metrics</div>
+            )}
           </div>
         </div>
       </div>
