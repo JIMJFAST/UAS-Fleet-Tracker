@@ -173,25 +173,35 @@ const daysBetween = (date1, date2) => {
 };
 
 // Helper: Calculate days in each status for an aircraft
-const calculateStatusDays = (aircraft) => {
+// Optional rangeFrom/rangeTo (YYYY-MM-DD) to limit the window
+const calculateStatusDays = (aircraft, rangeFrom, rangeTo) => {
   const history = aircraft.statusHistory || [{ status: aircraft.status, date: aircraft.lastFlight || '2024-01-01', reason: '' }];
-  const today = new Date().toLocaleDateString('en-CA');
-  
+  const windowEnd = rangeTo || new Date().toLocaleDateString('en-CA');
+  const windowStart = rangeFrom || null; // null = all time
+
   const days = { active: 0, maintenance: 0, grounded: 0 };
-  
+
   for (let i = 0; i < history.length; i++) {
     const entry = history[i];
-    const endDate = i === 0 ? today : history[i - 1].date;
-    const daysInStatus = Math.max(0, daysBetween(entry.date, endDate));
+    let segStart = entry.date;
+    let segEnd = i === 0 ? windowEnd : history[i - 1].date;
+
+    // Clip segment to the window
+    if (windowStart && segEnd <= windowStart) continue; // entirely before window
+    if (segStart >= windowEnd) continue; // entirely after window
+    if (windowStart && segStart < windowStart) segStart = windowStart;
+    if (segEnd > windowEnd) segEnd = windowEnd;
+
+    const daysInStatus = Math.max(0, daysBetween(segStart, segEnd));
     days[entry.status] = (days[entry.status] || 0) + daysInStatus;
   }
-  
+
   return days;
 };
 
 // Helper: Calculate availability percentage
-const calculateAvailability = (aircraft) => {
-  const days = calculateStatusDays(aircraft);
+const calculateAvailability = (aircraft, rangeFrom, rangeTo) => {
+  const days = calculateStatusDays(aircraft, rangeFrom, rangeTo);
   const totalDays = days.active + days.maintenance + days.grounded;
   if (totalDays === 0) return 100;
   return Math.round((days.active / totalDays) * 100);
@@ -343,6 +353,10 @@ export default function App() {
 
   // Quick log collapsed by default
   const [quickLogOpen, setQuickLogOpen] = useState(false);
+
+  // Metrics date range — default to current year
+  const [metricsFrom, setMetricsFrom] = useState(`${new Date().getFullYear()}-01-01`);
+  const [metricsTo, setMetricsTo] = useState(new Date().toLocaleDateString('en-CA'));
 
   // Load data on mount
   useEffect(() => {
@@ -1670,6 +1684,35 @@ export default function App() {
       {currentView === 'metrics' && (
       <div className="space-y-5">
 
+        {/* Date Range Filter */}
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="text-[10px] text-gray-500 uppercase tracking-widest mr-2">Period</div>
+          <div className="flex gap-1 flex-wrap">
+            {[
+              { label: '30 Days', from: new Date(Date.now() - 30*86400000).toLocaleDateString('en-CA') },
+              { label: '6 Months', from: new Date(Date.now() - 182*86400000).toLocaleDateString('en-CA') },
+              { label: 'This Year', from: `${new Date().getFullYear()}-01-01` },
+              { label: 'Last Year', from: `${new Date().getFullYear()-1}-01-01`, to: `${new Date().getFullYear()-1}-12-31` },
+              { label: 'All Time', from: '2020-01-01' },
+            ].map(p => {
+              const isActive = metricsFrom === p.from && metricsTo === (p.to || new Date().toLocaleDateString('en-CA'));
+              return (
+                <button key={p.label} onClick={() => { setMetricsFrom(p.from); setMetricsTo(p.to || new Date().toLocaleDateString('en-CA')); }}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+                >{p.label}</button>
+              );
+            })}
+          </div>
+          <div className="flex-1"></div>
+          <div className="flex items-center gap-2 text-xs">
+            <input type="date" value={metricsFrom} onChange={e => setMetricsFrom(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-blue-500" />
+            <span className="text-gray-600">to</span>
+            <input type="date" value={metricsTo} max={new Date().toLocaleDateString('en-CA')} onChange={e => setMetricsTo(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-blue-500" />
+          </div>
+        </div>
+
         {/* Row 1: Readiness + Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Fleet Readiness — big number */}
@@ -1704,9 +1747,9 @@ export default function App() {
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
               <div className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Availability</div>
               <div className={`text-2xl font-bold mt-1 ${
-                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a), 0) / aircraft.length) >= 80 ? 'text-green-400' :
-                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a), 0) / aircraft.length) >= 50 ? 'text-yellow-400' : 'text-red-400'
-              }`}>{aircraft.length > 0 ? Math.round(aircraft.reduce((s, a) => s + calculateAvailability(a), 0) / aircraft.length) : '0'}%</div>
+                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / aircraft.length) >= 80 ? 'text-green-400' :
+                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / aircraft.length) >= 50 ? 'text-yellow-400' : 'text-red-400'
+              }`}>{aircraft.length > 0 ? Math.round(aircraft.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / aircraft.length) : '0'}%</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
               <div className="text-[10px] text-gray-500 uppercase tracking-wider">Alerts</div>
@@ -1809,10 +1852,10 @@ export default function App() {
             ) : (
               <div className="space-y-3">
                 {[...aircraft]
-                  .sort((a, b) => calculateAvailability(b) - calculateAvailability(a))
+                  .sort((a, b) => calculateAvailability(b, metricsFrom, metricsTo) - calculateAvailability(a, metricsFrom, metricsTo))
                   .map(a => {
-                    const avail = calculateAvailability(a);
-                    const days = calculateStatusDays(a);
+                    const avail = calculateAvailability(a, metricsFrom, metricsTo);
+                    const days = calculateStatusDays(a, metricsFrom, metricsTo);
                     const total = Math.max(days.active + days.maintenance + days.grounded, 1);
                     return (
                       <div key={a.id}>
