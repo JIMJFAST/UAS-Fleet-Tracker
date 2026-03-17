@@ -1,0 +1,2248 @@
+import React, { useState, useEffect } from 'react';
+
+// Version
+const APP_VERSION = '2.1.9';
+console.log('================================');
+console.log(`  UAS Fleet Tracker v${APP_VERSION}`);
+console.log(`  ${new Date().toLocaleString()}`);
+console.log('================================');
+
+// Logging utility for senior engineer debugging
+const log = {
+  fleet: (action, details) => console.log(`[Fleet] ${action}:`, details),
+  data: (action, details) => console.log(`[Data] ${action}:`, details),
+  status: (action, details) => console.log(`[Status] ${action}:`, details),
+  hours: (action, details) => console.log(`[Hours] ${action}:`, details),
+  error: (action, details) => console.error(`[ERROR] ${action}:`, details)
+};
+
+// Icons as simple SVG components
+const Icons = {
+  Plane: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>,
+  Search: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+  Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+  X: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+  XSmall: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+  Edit: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>,
+  ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
+  ChevronUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>,
+  AlertTriangle: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
+  Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+  Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+  Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>,
+  Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+  Cpu: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>,
+  Radio: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>,
+  Weight: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><path d="M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z"/></svg>,
+  BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>,
+  List: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
+};
+
+// Initial sample data (weights in lbs)
+const initialAircraft = [
+  {
+    id: 1,
+    name: 'RAVEN-01',
+    status: 'active',
+    totalHours: 142.5,
+    maintenanceInterval: 200,
+    lastFlight: '2025-01-15',
+    airframeType: 'Quadcopter',
+    weight: 27.5,
+    maxWeight: 55,
+    flightController: 'Pixhawk 6C',
+    fcFirmware: 'ArduCopter 4.4.0',
+    companionComputer: 'Raspberry Pi 4',
+    companionOS: 'Ubuntu 22.04',
+    primaryRadio: 'LTE',
+    backupRadio: 'RF 900MHz',
+    location: 'Hangar A',
+    notes: 'Primary survey aircraft',
+    statusHistory: [
+      { status: 'active', date: '2024-06-01', reason: 'Initial deployment' }
+    ]
+  },
+  {
+    id: 2,
+    name: 'HAWK-03',
+    status: 'active',
+    totalHours: 185.2,
+    maintenanceInterval: 200,
+    lastFlight: '2025-01-14',
+    airframeType: 'Hexacopter',
+    weight: 40,
+    maxWeight: 77,
+    flightController: 'Cube Orange',
+    fcFirmware: 'ArduCopter 4.3.7',
+    companionComputer: 'Jetson Nano',
+    companionOS: 'JetPack 4.6',
+    primaryRadio: 'Starlink',
+    backupRadio: 'LTE',
+    location: 'Field Site 1',
+    notes: 'Heavy lift platform',
+    statusHistory: [
+      { status: 'active', date: '2024-08-15', reason: 'Returned from maintenance' },
+      { status: 'maintenance', date: '2024-08-01', reason: 'Gimbal replacement' },
+      { status: 'active', date: '2024-03-01', reason: 'Initial deployment' }
+    ]
+  },
+  {
+    id: 3,
+    name: 'EAGLE-02',
+    status: 'maintenance',
+    totalHours: 203.0,
+    maintenanceInterval: 200,
+    lastFlight: '2025-01-10',
+    airframeType: 'Fixed Wing',
+    weight: 17.6,
+    maxWeight: 33,
+    flightController: 'Pixhawk 4',
+    fcFirmware: 'ArduPlane 4.3.0',
+    companionComputer: 'None',
+    companionOS: 'N/A',
+    primaryRadio: 'RF 2.4GHz',
+    backupRadio: 'None',
+    location: 'Maintenance Bay',
+    notes: 'Needs motor replacement',
+    statusHistory: [
+      { status: 'maintenance', date: '2025-01-10', reason: 'Motor failure - needs replacement' },
+      { status: 'active', date: '2024-09-01', reason: 'Annual inspection complete' },
+      { status: 'maintenance', date: '2024-08-15', reason: 'Annual inspection' },
+      { status: 'active', date: '2024-01-15', reason: 'Initial deployment' }
+    ]
+  },
+  {
+    id: 4,
+    name: 'FALCON-04',
+    status: 'active',
+    totalHours: 45.0,
+    maintenanceInterval: 200,
+    lastFlight: '2025-01-15',
+    airframeType: 'Quadcopter',
+    weight: 12,
+    maxWeight: 22,
+    flightController: 'DJI N3',
+    fcFirmware: 'v1.7.6',
+    companionComputer: 'Intel NUC',
+    companionOS: 'Windows 11',
+    primaryRadio: 'LTE',
+    backupRadio: 'Starlink',
+    location: 'Hangar A',
+    notes: 'Inspection drone',
+    statusHistory: [
+      { status: 'active', date: '2024-10-01', reason: 'Initial deployment' }
+    ]
+  },
+  {
+    id: 5,
+    name: 'OSPREY-05',
+    status: 'grounded',
+    totalHours: 89.3,
+    maintenanceInterval: 200,
+    lastFlight: '2024-12-20',
+    airframeType: 'VTOL',
+    weight: 48.5,
+    maxWeight: 88,
+    flightController: 'Cube Black',
+    fcFirmware: 'ArduPlane 4.2.0',
+    companionComputer: 'Jetson Xavier',
+    companionOS: 'JetPack 5.0',
+    primaryRadio: 'RF 900MHz',
+    backupRadio: 'LTE',
+    location: 'Storage',
+    notes: 'Awaiting parts - ESC failure',
+    statusHistory: [
+      { status: 'grounded', date: '2024-12-20', reason: 'ESC failure - awaiting parts' },
+      { status: 'active', date: '2024-07-01', reason: 'Returned to service' },
+      { status: 'maintenance', date: '2024-06-15', reason: 'Firmware upgrade' },
+      { status: 'active', date: '2024-04-01', reason: 'Initial deployment' }
+    ]
+  }
+];
+
+// Helper: Convert lbs to kg
+const lbsToKg = (lbs) => (lbs * 0.453592).toFixed(1);
+
+// Helper: Calculate days between two dates
+const daysBetween = (date1, date2) => {
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+};
+
+// Helper: Calculate days in each status for an aircraft
+const calculateStatusDays = (aircraft) => {
+  const history = aircraft.statusHistory || [{ status: aircraft.status, date: aircraft.lastFlight || '2024-01-01', reason: '' }];
+  const today = new Date().toLocaleDateString('en-CA');
+  
+  const days = { active: 0, maintenance: 0, grounded: 0 };
+  
+  for (let i = 0; i < history.length; i++) {
+    const entry = history[i];
+    const endDate = i === 0 ? today : history[i - 1].date;
+    const daysInStatus = Math.max(0, daysBetween(entry.date, endDate));
+    days[entry.status] = (days[entry.status] || 0) + daysInStatus;
+  }
+  
+  return days;
+};
+
+// Helper: Calculate availability percentage
+const calculateAvailability = (aircraft) => {
+  const days = calculateStatusDays(aircraft);
+  const totalDays = days.active + days.maintenance + days.grounded;
+  if (totalDays === 0) return 100;
+  return Math.round((days.active / totalDays) * 100);
+};
+
+// Helper: Get days since last status change
+const daysSinceStatusChange = (aircraft) => {
+  const history = aircraft.statusHistory || [];
+  if (history.length === 0) return 0;
+  const today = new Date().toLocaleDateString('en-CA');
+  return daysBetween(history[0].date, today);
+};
+
+const radioOptions = ['LTE', 'RF 900MHz', 'RF 2.4GHz', 'Starlink', 'Mesh', 'None'];
+const fcOptions = ['Pixhawk 6C', 'Pixhawk 4', 'Cube Orange', 'Cube Black', 'DJI N3', 'Custom'];
+const companionOptions = ['None', 'Raspberry Pi 4', 'Raspberry Pi 5', 'Jetson Nano', 'Jetson Xavier', 'Intel NUC', 'Custom'];
+const airframeTypes = ['Quadcopter', 'Hexacopter', 'Octocopter', 'Fixed Wing', 'VTOL', 'Custom'];
+
+// ============================================
+// STORAGE HELPER - Works in both Electron and Browser
+// ============================================
+const isElectron = () => {
+  return window.electronAPI && window.electronAPI.isElectron;
+};
+
+const Storage = {
+  async load() {
+    if (isElectron()) {
+      return await window.electronAPI.loadFleetData();
+    } else {
+      try {
+        const saved = localStorage.getItem('uas_fleet_data');
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        console.error('LocalStorage load error:', e);
+        return null;
+      }
+    }
+  },
+
+  async save(data) {
+    if (isElectron()) {
+      return await window.electronAPI.saveFleetData(data);
+    } else {
+      try {
+        const dataStr = JSON.stringify(data);
+        localStorage.setItem('uas_fleet_data', dataStr);
+        return { success: true };
+      } catch (e) {
+        console.error('LocalStorage save error:', e);
+        // Handle quota exceeded error
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+          return { success: false, error: 'Storage quota exceeded. Export your data and clear old entries.' };
+        }
+        return { success: false, error: e.message };
+      }
+    }
+  },
+
+  async getDataPath() {
+    if (isElectron()) {
+      return await window.electronAPI.getDataPath();
+    } else {
+      return 'Browser LocalStorage';
+    }
+  },
+
+  async exportFile(data, format) {
+    if (isElectron()) {
+      return await window.electronAPI.exportFleetData(data, format);
+    } else {
+      const blob = new Blob([data], { type: format === 'csv' ? 'text/csv' : 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `uas_fleet_export.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return { success: true };
+    }
+  },
+
+  async importFile() {
+    if (isElectron()) {
+      return await window.electronAPI.importFleetData();
+    } else {
+      return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) {
+            resolve({ success: false, canceled: true });
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const data = JSON.parse(event.target.result);
+              resolve({ success: true, data });
+            } catch (err) {
+              resolve({ success: false, error: 'Invalid JSON file' });
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      });
+    }
+  }
+};
+
+export default function App() {
+  const [aircraft, setAircraft] = useState([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [dataPath, setDataPath] = useState('');
+  const [currentView, setCurrentView] = useState('fleet'); // 'fleet' or 'metrics'
+  const [expandedId, setExpandedId] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [notification, setNotification] = useState(null);
+  
+  // Status change modal state
+  const [statusChangeModal, setStatusChangeModal] = useState(null); // { aircraftId, newStatus }
+  const [statusChangeReason, setStatusChangeReason] = useState('');
+  const [pendingEditSave, setPendingEditSave] = useState(null); // Stores edit data when status change needs reason
+  const [expandedHistory, setExpandedHistory] = useState({}); // Track which aircraft history panels are expanded
+  
+  // Quick log state
+  const [quickLogAircraft, setQuickLogAircraft] = useState('');
+  const [quickLogHours, setQuickLogHours] = useState('');
+  const [quickLogDate, setQuickLogDate] = useState(new Date().toLocaleDateString('en-CA'));
+
+  // Form state
+  const [formData, setFormData] = useState({});
+
+  // Dismissible alerts state (session-only, resets on app restart)
+  const [dismissedAlerts, setDismissedAlerts] = useState({});
+
+  // Reset confirmation modal
+  const [resetConfirm, setResetConfirm] = useState(false);
+
+  // Load data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      const saved = await Storage.load();
+      // FIX: Check if file exists (not null), not if has items
+      // This allows empty fleet [] to be preserved
+      if (saved !== null) {
+        setAircraft(saved);  // Load whatever was saved (even empty [])
+        log.data('Loaded', `${saved.length} aircraft from storage`);
+      } else {
+        setAircraft(initialAircraft);  // Only load samples on first run
+        await Storage.save(initialAircraft);
+        log.data('Initialized', `${initialAircraft.length} sample aircraft (first run)`);
+      }
+      const path = await Storage.getDataPath();
+      setDataPath(path);
+      setIsLoaded(true);
+    };
+    loadData();
+  }, []);
+
+  // Save data whenever aircraft changes
+  useEffect(() => {
+    const saveData = async () => {
+      if (isLoaded && aircraft.length >= 0) {
+        const result = await Storage.save(aircraft);
+        if (result && !result.success && result.error) {
+          log.error('Save failed', result.error);
+          showNotification(result.error, 'warning');
+        } else if (result && result.success) {
+          log.data('Saved', `${aircraft.length} aircraft to storage`);
+        }
+      }
+    };
+    saveData();
+  }, [aircraft, isLoaded]);
+
+  // Show notification
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
+
+  // Auto-dismiss notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  // Calculate stats
+  const stats = {
+    total: aircraft.length,
+    active: aircraft.filter(a => a.status === 'active').length,
+    maintenance: aircraft.filter(a => a.status === 'maintenance').length,
+    grounded: aircraft.filter(a => a.status === 'grounded').length
+  };
+
+  // Aircraft approaching maintenance (80% to 99% of interval - not yet due)
+  const needsAttention = aircraft.filter(a => 
+    a.totalHours >= a.maintenanceInterval * 0.8 && 
+    a.totalHours < a.maintenanceInterval && 
+    a.status === 'active'
+  );
+
+  // Aircraft that are DUE or OVERDUE
+  const dueOrOverdue = aircraft.filter(a => 
+    a.totalHours >= a.maintenanceInterval && a.status === 'active'
+  );
+
+  // Filter and search
+  // When searching, show ALL matching aircraft regardless of filter tab
+  const filteredAircraft = aircraft.filter(a => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = !term ||
+      a.name.toLowerCase().includes(term) ||
+      a.airframeType.toLowerCase().includes(term) ||
+      a.flightController.toLowerCase().includes(term) ||
+      (a.companionComputer && a.companionComputer.toLowerCase().includes(term)) ||
+      a.primaryRadio.toLowerCase().includes(term) ||
+      (a.backupRadio && a.backupRadio.toLowerCase().includes(term)) ||
+      (a.location && a.location.toLowerCase().includes(term)) ||
+      (a.notes && a.notes.toLowerCase().includes(term));
+
+    // If searching, skip the filter tab — show all matches
+    if (term) return matchesSearch;
+
+    let matchesFilter = filter === 'all';
+    if (filter === 'active') matchesFilter = a.status === 'active';
+    if (filter === 'maintenance') matchesFilter = a.status === 'maintenance' || (a.status === 'active' && a.totalHours >= a.maintenanceInterval);
+    if (filter === 'grounded') matchesFilter = a.status === 'grounded';
+    return matchesFilter;
+  });
+
+  // Dropdown search results — always searches ALL aircraft regardless of tab
+  const searchResults = searchTerm ? aircraft.filter(a => {
+    const term = searchTerm.toLowerCase();
+    return a.name.toLowerCase().includes(term) ||
+      a.airframeType.toLowerCase().includes(term) ||
+      a.flightController.toLowerCase().includes(term) ||
+      (a.companionComputer && a.companionComputer.toLowerCase().includes(term)) ||
+      a.primaryRadio.toLowerCase().includes(term) ||
+      (a.backupRadio && a.backupRadio.toLowerCase().includes(term)) ||
+      (a.location && a.location.toLowerCase().includes(term)) ||
+      (a.notes && a.notes.toLowerCase().includes(term));
+  }) : [];
+
+  // Get status color
+  const getStatusColor = (a) => {
+    if (a.status === 'grounded') return 'bg-gray-500';
+    if (a.status === 'maintenance' || a.totalHours >= a.maintenanceInterval) return 'bg-red-500';
+    if (a.totalHours >= a.maintenanceInterval * 0.8) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
+  // Get status badge (pill style)
+  const getStatusBadge = (a) => {
+    if (a.status === 'grounded') {
+      return { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'DOWN' };
+    }
+    if (a.status === 'maintenance' || a.totalHours >= a.maintenanceInterval) {
+      return { bg: 'bg-red-500/20', text: 'text-red-400', label: 'MAINT' };
+    }
+    if (a.totalHours >= a.maintenanceInterval * 0.8) {
+      return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'WARN' };
+    }
+    return { bg: 'bg-green-500/20', text: 'text-green-400', label: 'OK' };
+  };
+
+  // Get hours remaining
+  const getHoursRemaining = (a) => {
+    return a.maintenanceInterval - a.totalHours;
+  };
+
+  // Quick log flight
+  const handleQuickLog = () => {
+    if (!quickLogAircraft || !quickLogHours || parseFloat(quickLogHours) <= 0) {
+      showNotification('Select aircraft and enter valid hours', 'warning');
+      return;
+    }
+    
+    const hours = parseFloat(quickLogHours);
+    const ac = aircraft.find(a => a.id === parseInt(quickLogAircraft));
+    if (!ac) {
+      showNotification('Aircraft not found — it may have been removed', 'warning');
+      setQuickLogAircraft('');
+      return;
+    }
+
+    const newTotal = Math.round((ac.totalHours + hours) * 10) / 10;
+    setAircraft(prev => prev.map(a => {
+      if (a.id === parseInt(quickLogAircraft)) {
+        return {
+          ...a,
+          totalHours: newTotal,
+          lastFlight: quickLogDate
+        };
+      }
+      return a;
+    }));
+
+    log.hours('Quick Log', `${ac.name}: +${hours} hrs (Total: ${newTotal} hrs, Date: ${quickLogDate})`);
+    showNotification(`Logged ${hours} hours to ${ac.name}`, 'success');
+    setQuickLogAircraft('');
+    setQuickLogHours('');
+    setQuickLogDate(new Date().toLocaleDateString('en-CA'));
+  };
+
+  // Open add modal
+  const openAddModal = () => {
+    setFormData({
+      name: '',
+      status: 'active',
+      totalHours: '',
+      maintenanceInterval: 200,
+      lastFlight: new Date().toLocaleDateString('en-CA'),
+      airframeType: 'Quadcopter',
+      weight: '',
+      maxWeight: '',
+      flightController: 'Pixhawk 6C',
+      fcFirmware: '',
+      companionComputer: 'None',
+      companionOS: '',
+      primaryRadio: 'LTE',
+      backupRadio: 'None',
+      location: '',
+      notes: ''
+    });
+    setEditingId(null);
+    setModalOpen(true);
+  };
+
+  // Open edit modal
+  const openEditModal = (ac) => {
+    setFormData({ ...ac });
+    setEditingId(ac.id);
+    setModalOpen(true);
+  };
+
+  // Close modal
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingId(null);
+    setFormData({});
+  };
+
+  // Save aircraft
+  const handleSave = () => {
+    const trimmedName = (formData.name || '').trim();
+    
+    if (!trimmedName) {
+      showNotification('Aircraft name is required', 'warning');
+      return;
+    }
+
+    // Check for duplicate names (excluding current aircraft if editing)
+    const duplicate = aircraft.find(a => 
+      a.name.toLowerCase() === trimmedName.toLowerCase() && 
+      a.id !== editingId
+    );
+    if (duplicate) {
+      showNotification('Aircraft name already exists', 'warning');
+      return;
+    }
+
+    // Parse numeric values
+    const weight = formData.weight === '' ? 0 : parseFloat(formData.weight) || 0;
+    const maxWeight = formData.maxWeight === '' ? 55 : parseFloat(formData.maxWeight) || 55;
+    
+    // Validate weight <= maxWeight
+    if (weight > maxWeight) {
+      showNotification('Weight cannot exceed max takeoff weight', 'warning');
+      return;
+    }
+
+    // Prepare data with proper number conversions (weights in lbs)
+    const preparedData = {
+      ...formData,
+      name: trimmedName,
+      totalHours: formData.totalHours === '' ? 0 : parseFloat(formData.totalHours) || 0,
+      weight: weight,
+      maxWeight: maxWeight,
+      maintenanceInterval: formData.maintenanceInterval === '' ? 200 : parseFloat(formData.maintenanceInterval) || 200
+    };
+
+    const today = new Date().toLocaleDateString('en-CA');
+
+    if (editingId) {
+      // Update existing - check if status changed
+      const existingAircraft = aircraft.find(a => a.id === editingId);
+      
+      if (existingAircraft && existingAircraft.status !== preparedData.status) {
+        // Status changed - need to prompt for reason
+        setPendingEditSave({
+          preparedData,
+          editingId,
+          existingHistory: existingAircraft.statusHistory || [],
+          newStatus: preparedData.status
+        });
+        setStatusChangeModal({ aircraftId: editingId, newStatus: preparedData.status });
+        setStatusChangeReason('');
+        setModalOpen(false); // FIX: Hide edit modal before showing status reason modal
+        return; // Don't save yet - wait for reason
+      }
+      
+      // No status change - save directly
+      setAircraft(prev => prev.map(a =>
+        a.id === editingId ? { ...preparedData, id: editingId, statusHistory: existingAircraft?.statusHistory || [] } : a
+      ));
+      log.fleet('Updated', `${trimmedName} (ID: ${editingId})`);
+      showNotification(`${trimmedName} updated`, 'success');
+    } else {
+      // Add new - initialize statusHistory
+      const newAircraft = {
+        ...preparedData,
+        id: Date.now(),
+        statusHistory: [
+          { status: preparedData.status, date: today, reason: 'Added to fleet' }
+        ]
+      };
+      setAircraft(prev => [...prev, newAircraft]);
+      log.fleet('Added', `${trimmedName} (ID: ${newAircraft.id}, Status: ${preparedData.status})`);
+      showNotification(`${trimmedName} added to fleet`, 'success');
+    }
+    closeModal();
+  };
+
+  // Delete aircraft
+  const handleDelete = (id) => {
+    const ac = aircraft.find(a => a.id === id);
+    setAircraft(prev => prev.filter(a => a.id !== id));
+    setDeleteConfirm(null);
+    setExpandedId(null);
+    log.fleet('Deleted', `${ac?.name} (ID: ${id})`);
+    showNotification(`${ac?.name} removed from fleet`, 'success');
+  };
+
+  // Open status change modal
+  const openStatusChangeModal = (aircraftId, newStatus) => {
+    setStatusChangeModal({ aircraftId, newStatus });
+    setStatusChangeReason('');
+  };
+
+  // Handle status change with reason
+  const handleStatusChange = () => {
+    if (!statusChangeModal) return;
+    
+    const { aircraftId, newStatus } = statusChangeModal;
+    const today = new Date().toLocaleDateString('en-CA');
+    
+    // Check if this is from an edit modal save (pendingEditSave exists)
+    if (pendingEditSave && pendingEditSave.editingId === aircraftId) {
+      // Complete the pending edit with the status change reason
+      const { preparedData, editingId, existingHistory } = pendingEditSave;
+      
+      const newHistoryEntry = {
+        status: newStatus,
+        date: today,
+        reason: statusChangeReason || `Changed to ${newStatus}`
+      };
+      
+      setAircraft(prev => prev.map(a => 
+        a.id === editingId ? { 
+          ...preparedData, 
+          id: editingId, 
+          statusHistory: [newHistoryEntry, ...existingHistory] 
+        } : a
+      ));
+      
+      log.status('Changed (via edit)', `${preparedData.name}: → ${newStatus} (${statusChangeReason || 'No reason'})`);
+      showNotification(`${preparedData.name} updated`, 'success');
+      setPendingEditSave(null);
+      closeModal(); // Close the edit modal
+    } else {
+      // Regular quick status change (not from edit modal)
+      setAircraft(prev => prev.map(a => {
+        if (a.id === aircraftId) {
+          const newHistoryEntry = {
+            status: newStatus,
+            date: today,
+            reason: statusChangeReason || `Changed to ${newStatus}`
+          };
+          
+          const currentHistory = a.statusHistory || [];
+          
+          return {
+            ...a,
+            status: newStatus,
+            statusHistory: [newHistoryEntry, ...currentHistory]
+          };
+        }
+        return a;
+      }));
+      
+      const acName = aircraft.find(a => a.id === aircraftId)?.name;
+      log.status('Changed (quick)', `${acName}: → ${newStatus} (${statusChangeReason || 'No reason'})`);
+      showNotification(`${acName} status changed to ${newStatus}`, 'success');
+    }
+
+    setStatusChangeModal(null);
+    setStatusChangeReason('');
+  };
+
+  // Toggle row expand
+  const toggleExpand = (id) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
+  // Export CSV
+  const handleExport = async () => {
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    
+    const headers = ['Name', 'Status', 'Total Hours', 'Maintenance Interval', 'Last Flight', 'Airframe Type', 'Weight', 'Max Weight', 'Flight Controller', 'FC Firmware', 'Companion Computer', 'Companion OS', 'Primary Radio', 'Backup Radio', 'Location', 'Notes'];
+    const rows = aircraft.map(a => [
+      escapeCSV(a.name), a.status, a.totalHours, a.maintenanceInterval, a.lastFlight, 
+      escapeCSV(a.airframeType), a.weight, a.maxWeight, escapeCSV(a.flightController), 
+      escapeCSV(a.fcFirmware), escapeCSV(a.companionComputer), escapeCSV(a.companionOS), 
+      escapeCSV(a.primaryRadio), escapeCSV(a.backupRadio), escapeCSV(a.location), escapeCSV(a.notes)
+    ]);
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const result = await Storage.exportFile(csv, 'csv');
+    if (result.success) {
+      log.data('Exported CSV', `${aircraft.length} aircraft`);
+      showNotification('Fleet data exported', 'success');
+    }
+  };
+
+  // Export JSON (full backup)
+  const handleExportJSON = async () => {
+    const result = await Storage.exportFile(JSON.stringify(aircraft, null, 2), 'json');
+    if (result.success) {
+      log.data('Exported JSON', `${aircraft.length} aircraft (full backup)`);
+      showNotification('Fleet backup exported', 'success');
+    }
+  };
+
+  // FIX: Validate imported aircraft data structure
+  // Validate and normalize imported aircraft data (flexible type handling)
+  const validateAircraftData = (data) => {
+    if (!Array.isArray(data)) return { valid: false, error: 'Data must be an array', data: null };
+
+    const normalized = [];
+    for (let i = 0; i < data.length; i++) {
+      const a = data[i];
+      if (!a || typeof a !== 'object') {
+        return { valid: false, error: `Item ${i + 1} is not an object`, data: null };
+      }
+
+      // Coerce and validate id (accept number or string)
+      const id = Number(a.id);
+      if (isNaN(id) || id <= 0) {
+        return { valid: false, error: `Item ${i + 1} missing valid id`, data: null };
+      }
+
+      // Validate name
+      if (!a.name || (typeof a.name !== 'string') || !String(a.name).trim()) {
+        return { valid: false, error: `Item ${i + 1} missing name`, data: null };
+      }
+
+      // Validate status (default to 'active' if missing)
+      const status = a.status || 'active';
+      if (!['active', 'maintenance', 'grounded'].includes(status)) {
+        return { valid: false, error: `Item ${i + 1} has invalid status`, data: null };
+      }
+
+      // Coerce totalHours (accept number or string, default to 0)
+      const totalHours = Number(a.totalHours) || 0;
+      if (isNaN(totalHours) || totalHours < 0) {
+        return { valid: false, error: `Item ${i + 1} has invalid totalHours`, data: null };
+      }
+
+      // Coerce maintenanceInterval (accept number or string, default to 200)
+      const maintenanceInterval = Number(a.maintenanceInterval) || 200;
+      if (isNaN(maintenanceInterval) || maintenanceInterval <= 0) {
+        return { valid: false, error: `Item ${i + 1} has invalid maintenanceInterval`, data: null };
+      }
+
+      // Build normalized object with all fields
+      normalized.push({
+        ...a,
+        id: id,
+        name: String(a.name).trim(),
+        status: status,
+        totalHours: totalHours,
+        maintenanceInterval: maintenanceInterval,
+        weight: Number(a.weight) || 0,
+        maxWeight: Number(a.maxWeight) || 55,
+        statusHistory: Array.isArray(a.statusHistory)
+          ? [...a.statusHistory].sort((x, y) => new Date(y.date) - new Date(x.date))
+          : []
+      });
+    }
+    return { valid: true, data: normalized };
+  };
+
+  // Import JSON
+  const handleImportJSON = async () => {
+    const result = await Storage.importFile();
+    if (result.success && result.data) {
+      const validation = validateAircraftData(result.data);
+      if (validation.valid && validation.data) {
+        setAircraft(validation.data);  // Use normalized data
+        log.data('Imported JSON', `${validation.data.length} aircraft`);
+        showNotification(`Imported ${validation.data.length} aircraft`, 'success');
+      } else {
+        log.error('Import failed', validation.error);
+        showNotification(`Invalid data: ${validation.error}`, 'warning');
+      }
+    } else if (result.error) {
+      log.error('Import failed', result.error);
+      showNotification(result.error, 'warning');
+    }
+  };
+
+  // Reset to sample data
+  const handleResetData = () => {
+    setResetConfirm(true);
+  };
+  const confirmReset = () => {
+    setAircraft(initialAircraft);
+    setResetConfirm(false);
+    showNotification('Data reset to sample aircraft', 'success');
+  };
+
+  // Update form field
+  const updateForm = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 md:p-8">
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3 toast-animate ${
+          notification.type === 'warning'
+            ? 'bg-yellow-900/90 border border-yellow-700 text-yellow-200'
+            : 'bg-gray-800 border border-green-700 text-green-200'
+        }`}>
+          {notification.type === 'warning' ? (
+            <Icons.AlertTriangle />
+          ) : (
+            <Icons.Check />
+          )}
+          <span className="flex-1">{notification.message}</span>
+          <button
+            onClick={() => setNotification(null)}
+            className={`p-1 rounded hover:bg-black/20 transition ${
+              notification.type === 'warning' ? 'text-yellow-300' : 'text-green-300'
+            }`}
+          >
+            <Icons.XSmall />
+          </button>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {!isLoaded && (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-400">Loading fleet data...</div>
+        </div>
+      )}
+
+      {isLoaded && (
+      <>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="text-blue-400"><Icons.Plane /></div>
+          <h1 className="text-2xl font-bold">UAS Fleet Tracker</h1>
+        </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <Icons.Search />
+            </div>
+            <input
+              type="text"
+              placeholder="Search name, type, radio..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowSearchDropdown(e.target.value.length > 0);
+              }}
+              onFocus={() => searchTerm && setShowSearchDropdown(true)}
+              onBlur={() => setShowSearchDropdown(false)}
+              className="w-full sm:w-56 bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-8 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            {searchTerm && (
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setSearchTerm('');
+                  setShowSearchDropdown(false);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                <Icons.XSmall />
+              </button>
+            )}
+            {showSearchDropdown && searchTerm && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                {searchResults.length > 0 ? (
+                  searchResults.map(a => (
+                    <div
+                      key={a.id}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setExpandedId(a.id);
+                        setSearchTerm('');
+                        setShowSearchDropdown(false);
+                        setFilter('all');
+                      }}
+                      className="px-3 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2"
+                    >
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(a)}`}></div>
+                      <span className="font-medium">{a.name}</span>
+                      <span className="text-gray-500 text-xs">{a.airframeType}</span>
+                      <span className={`text-xs ml-auto capitalize ${
+                        a.status === 'active' ? 'text-green-500' :
+                        a.status === 'maintenance' ? 'text-red-400' : 'text-gray-500'
+                      }`}>{a.status}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-3 text-gray-500 text-sm text-center">No aircraft found</div>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-2 btn-primary-gradient px-4 py-2 rounded-lg font-medium transition"
+          >
+            <Icons.Plus /> Add Aircraft
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Tab Navigation */}
+      <div className="flex gap-4 mb-6 border-b border-gray-700 pb-0">
+        <button
+          onClick={() => setCurrentView('fleet')}
+          className={`tab-btn flex items-center gap-2 px-4 py-3 font-medium text-gray-400 hover:text-gray-200 ${
+            currentView === 'fleet' ? 'active' : ''
+          }`}
+        >
+          <Icons.List /> Fleet
+        </button>
+        <button
+          onClick={() => setCurrentView('metrics')}
+          className={`tab-btn flex items-center gap-2 px-4 py-3 font-medium text-gray-400 hover:text-gray-200 ${
+            currentView === 'metrics' ? 'active' : ''
+          }`}
+        >
+          <Icons.BarChart /> Metrics
+        </button>
+      </div>
+
+      {/* ============ FLEET VIEW ============ */}
+      {currentView === 'fleet' && (
+      <>
+      {/* Status Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
+        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+          <div className="text-3xl font-bold text-white">{stats.total}</div>
+          <div className="text-gray-400 text-sm">Total Aircraft</div>
+        </div>
+        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            <span className="text-3xl font-bold text-white">{stats.active}</span>
+          </div>
+          <div className="text-gray-400 text-sm">Active</div>
+        </div>
+        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <span className="text-3xl font-bold text-white">{stats.maintenance}</span>
+          </div>
+          <div className="text-gray-400 text-sm">In Maintenance</div>
+        </div>
+        <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-gray-500"></div>
+            <span className="text-3xl font-bold text-white">{stats.grounded}</span>
+          </div>
+          <div className="text-gray-400 text-sm">Grounded</div>
+        </div>
+      </div>
+
+      {/* Alert Banner - Approaching Maintenance (Dismissible) */}
+      {needsAttention.length > 0 && !dismissedAlerts.approaching && (
+        <div className="bg-yellow-900/50 border border-yellow-700 rounded-lg p-3 mb-4 flex items-center gap-3">
+          <div className="text-yellow-500"><Icons.AlertTriangle /></div>
+          <span className="text-yellow-200 text-sm flex-1">
+            <strong>{needsAttention.length} aircraft</strong> approaching maintenance: {needsAttention.map(a => a.name).join(', ')}
+          </span>
+          <button
+            onClick={() => setDismissedAlerts(prev => ({ ...prev, approaching: true }))}
+            className="text-yellow-400 hover:text-yellow-200 p-1 hover:bg-yellow-800/50 rounded transition"
+            title="Dismiss until restart"
+          >
+            <Icons.XSmall />
+          </button>
+        </div>
+      )}
+
+      {/* Alert Banner - DUE or OVERDUE (Dismissible) */}
+      {dueOrOverdue.length > 0 && !dismissedAlerts.dueOverdue && (
+        <div className="bg-red-900/50 border border-red-700 rounded-lg p-3 mb-4 flex items-center gap-3">
+          <div className="text-red-500"><Icons.AlertTriangle /></div>
+          <span className="text-red-200 text-sm flex-1">
+            <strong>{dueOrOverdue.length} aircraft</strong> maintenance DUE/OVERDUE: {dueOrOverdue.map(a => {
+              const remaining = a.maintenanceInterval - a.totalHours;
+              return `${a.name} (${remaining === 0 ? 'DUE' : `OVERDUE ${Math.abs(remaining).toFixed(1)} hrs`})`;
+            }).join(', ')}
+          </span>
+          <button
+            onClick={() => setDismissedAlerts(prev => ({ ...prev, dueOverdue: true }))}
+            className="text-red-400 hover:text-red-200 p-1 hover:bg-red-800/50 rounded transition"
+            title="Dismiss until restart"
+          >
+            <Icons.XSmall />
+          </button>
+        </div>
+      )}
+
+      {/* In Maintenance Section (Dismissible) */}
+      {aircraft.filter(a => a.status === 'maintenance').length > 0 && !dismissedAlerts.inMaintenance && (
+        <div className="bg-red-900/30 border border-red-700 rounded-2xl p-4 mb-6 relative shadow-lg">
+          <button
+            onClick={() => setDismissedAlerts(prev => ({ ...prev, inMaintenance: true }))}
+            className="absolute top-3 right-3 text-red-400 hover:text-red-200 p-1 hover:bg-red-800/50 rounded transition"
+            title="Dismiss until restart"
+          >
+            <Icons.XSmall />
+          </button>
+          <div className="text-xs font-medium text-red-400 uppercase tracking-wider mb-3">In Maintenance</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {aircraft.filter(a => a.status === 'maintenance').map(a => (
+              <div key={a.id} className="bg-gray-800/50 rounded-lg p-3 flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-white">{a.name}</div>
+                  <div className="text-xs text-gray-400">{a.airframeType} • {a.totalHours.toFixed(1)} hrs</div>
+                  {a.notes && <div className="text-xs text-red-300 mt-1">{a.notes}</div>}
+                </div>
+                <button
+                  onClick={() => openStatusChangeModal(a.id, 'active')}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-xs font-medium transition"
+                >
+                  Return to Service
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Flight Log */}
+      <div className="bg-gray-800 rounded-2xl p-5 mb-8 border border-gray-700 shadow-lg">
+        <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Quick Flight Log</div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <select
+            value={quickLogAircraft}
+            onChange={(e) => setQuickLogAircraft(e.target.value)}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+          >
+            <option value="">Select Aircraft</option>
+            {aircraft.filter(a => a.status === 'active').map(a => (
+              <option key={a.id} value={a.id}>{a.name} ({a.totalHours} hrs)</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            placeholder="Hours"
+            value={quickLogHours}
+            onChange={(e) => setQuickLogHours(e.target.value)}
+            className="w-full sm:w-24 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+          />
+          <input
+            type="date"
+            value={quickLogDate}
+            max={new Date().toLocaleDateString('en-CA')}
+            onChange={(e) => setQuickLogDate(e.target.value)}
+            className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+          />
+          <button
+            onClick={handleQuickLog}
+            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition whitespace-nowrap"
+          >
+            <Icons.Clock /> Log Flight
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Data Management */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+        <div className="flex flex-wrap gap-2">
+          {['all', 'active', 'maintenance', 'grounded'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg font-medium transition capitalize ${
+                filter === f 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1"></div>
+        <div className="flex flex-wrap gap-2">
+          <button 
+            onClick={handleImportJSON}
+            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-gray-400 transition text-sm"
+          >
+            <Icons.Upload /> Import
+          </button>
+          <button 
+            onClick={handleExportJSON}
+            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-gray-400 transition text-sm"
+            title="Export JSON backup"
+          >
+            <Icons.Download /> Backup
+          </button>
+          <button 
+            onClick={handleExport}
+            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-gray-400 transition text-sm"
+            title="Export CSV spreadsheet"
+          >
+            <Icons.Download /> CSV
+          </button>
+          <button 
+            onClick={handleResetData}
+            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-red-900/50 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 transition text-sm"
+            title="Reset to sample data"
+          >
+            <Icons.Trash /> Reset
+          </button>
+        </div>
+      </div>
+
+      {/* Aircraft Table */}
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-lg overflow-hidden overflow-x-auto">
+        {/* Table Header */}
+        <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-700 text-sm text-gray-400 font-medium min-w-[600px] sticky top-0 bg-gray-800 z-10">
+          <div className="col-span-1">STS</div>
+          <div className="col-span-2">Aircraft</div>
+          <div className="col-span-2">Type</div>
+          <div className="col-span-2">Radio</div>
+          <div className="col-span-2 text-right">To Maint.</div>
+          <div className="col-span-2 text-right">Hours</div>
+          <div className="col-span-1"></div>
+        </div>
+
+        {/* Table Body */}
+        {filteredAircraft.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            No aircraft found
+          </div>
+        ) : (
+          filteredAircraft.map((a, index) => {
+            const hoursRemaining = getHoursRemaining(a);
+            const isExpanded = expandedId === a.id;
+
+            return (
+              <div key={a.id} className="border-b border-gray-700 last:border-b-0">
+                {/* Main Row */}
+                <div
+                  className={`grid grid-cols-12 gap-2 px-4 py-3 cursor-pointer hover:bg-gray-750 transition items-center min-w-[600px] table-row-hover ${isExpanded ? 'bg-gray-750' : index % 2 === 1 ? 'bg-gray-800/40' : ''}`}
+                  onClick={() => toggleExpand(a.id)}
+                >
+                  <div className="col-span-1">
+                    {(() => {
+                      const badge = getStatusBadge(a);
+                      return (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${badge.bg} ${badge.text}`}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div className="col-span-2 font-medium truncate">{a.name}</div>
+                  <div className="col-span-2 text-gray-400 truncate">{a.airframeType || '-'}</div>
+                  <div className="col-span-2 text-gray-400 truncate">{a.primaryRadio || '-'}</div>
+                  <div className={`col-span-2 text-right font-mono ${
+                    hoursRemaining < 0 ? 'text-red-400 font-bold' : 
+                    hoursRemaining === 0 ? 'text-red-400 font-bold' :
+                    hoursRemaining <= 20 ? 'text-yellow-400' : 'text-gray-400'
+                  }`}>
+                    {hoursRemaining < 0 ? 'OVERDUE' : hoursRemaining === 0 ? 'DUE' : `${hoursRemaining.toFixed(1)}`}
+                  </div>
+                  <div className="col-span-2 text-right font-mono">{a.totalHours.toFixed(1)}</div>
+                  <div className="col-span-1 flex items-center justify-end gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEditModal(a); }}
+                      className="p-1.5 hover:bg-gray-600 rounded transition"
+                      title="Edit"
+                    >
+                      <Icons.Edit />
+                    </button>
+                    {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
+                  </div>
+                </div>
+
+                {/* Expanded Details */}
+                {isExpanded && (
+                  <div className="px-4 py-4 bg-gray-850 border-t border-gray-700">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
+                          <Icons.Cpu /> Flight Controller
+                        </div>
+                        <div className="text-sm font-medium">{a.flightController}</div>
+                        <div className="text-xs text-gray-500">{a.fcFirmware || 'No firmware info'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
+                          <Icons.Cpu /> Companion Computer
+                        </div>
+                        <div className="text-sm font-medium">{a.companionComputer}</div>
+                        <div className="text-xs text-gray-500">{a.companionOS || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
+                          <Icons.Radio /> Radio Config
+                        </div>
+                        <div className="text-sm font-medium">Primary: {a.primaryRadio}</div>
+                        <div className="text-xs text-gray-500">Backup: {a.backupRadio}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-2 flex items-center gap-2">
+                          <Icons.Weight /> Weight
+                        </div>
+                        <div className="text-sm font-medium">{a.weight} lbs ({lbsToKg(a.weight)} kg) / {a.maxWeight} lbs ({lbsToKg(a.maxWeight)} kg) MTOW</div>
+                        <div className="text-xs text-gray-500">Payload: {(a.maxWeight - a.weight).toFixed(1)} lbs ({lbsToKg(a.maxWeight - a.weight)} kg) available</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-1">Last Flight</div>
+                        <div className="text-sm">{a.lastFlight}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-1">Location</div>
+                        <div className="text-sm">{a.location || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase mb-1">Maintenance Status</div>
+                        <div className="text-sm">
+                          {hoursRemaining < 0 ? (
+                            <span className="text-red-400 font-bold">OVERDUE by {Math.abs(hoursRemaining).toFixed(1)} hrs</span>
+                          ) : hoursRemaining === 0 ? (
+                            <span className="text-red-400 font-bold">DUE NOW (interval: {a.maintenanceInterval} hrs)</span>
+                          ) : (
+                            <span>{hoursRemaining.toFixed(1)} hrs until service (interval: {a.maintenanceInterval} hrs)</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {a.notes && (
+                      <div className="mt-4 pt-4 border-t border-gray-700">
+                        <div className="text-xs text-gray-500 uppercase mb-1">Notes</div>
+                        <div className="text-sm text-gray-300">{a.notes}</div>
+                      </div>
+                    )}
+
+                    {/* Status Timeline - Collapsible */}
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setExpandedHistory(prev => ({ ...prev, [a.id]: !prev[a.id] }));
+                        }}
+                        className="w-full flex items-center justify-between text-left hover:bg-gray-700/30 rounded-lg p-2 -m-2 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            width="16" 
+                            height="16" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                            className={`text-gray-400 transition-transform ${expandedHistory[a.id] ? 'rotate-90' : ''}`}
+                          >
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                          </svg>
+                          <span className="text-xs text-gray-500 uppercase">Status History</span>
+                          <span className="text-xs text-gray-600">({(a.statusHistory || []).length} entries)</span>
+                        </div>
+                        <div className={`text-sm font-medium ${
+                          calculateAvailability(a) >= 80 ? 'text-green-400' :
+                          calculateAvailability(a) >= 50 ? 'text-yellow-400' : 'text-red-400'
+                        }`}>
+                          {calculateAvailability(a)}% Avail
+                        </div>
+                      </button>
+                      
+                      {expandedHistory[a.id] && (
+                        <div className="mt-3">
+                          {/* Availability Stats */}
+                          <div className="grid grid-cols-3 gap-4 mb-4">
+                            {(() => {
+                              const days = calculateStatusDays(a);
+                              const total = days.active + days.maintenance + days.grounded;
+                              return (
+                                <>
+                                  <div className="bg-green-900/20 rounded-lg p-3 text-center">
+                                    <div className="text-lg font-bold text-green-400">{days.active}</div>
+                                    <div className="text-xs text-gray-400">Days Active</div>
+                                  </div>
+                                  <div className="bg-red-900/20 rounded-lg p-3 text-center">
+                                    <div className="text-lg font-bold text-red-400">{days.maintenance}</div>
+                                    <div className="text-xs text-gray-400">Days in Maint</div>
+                                  </div>
+                                  <div className="bg-gray-700/50 rounded-lg p-3 text-center">
+                                    <div className="text-lg font-bold text-gray-400">{days.grounded}</div>
+                                    <div className="text-xs text-gray-400">Days Grounded</div>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Availability Bar */}
+                          <div className="mb-4">
+                            <div className="flex justify-between text-xs text-gray-400 mb-1">
+                              <span>Availability</span>
+                              <span>{calculateAvailability(a)}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  calculateAvailability(a) >= 80 ? 'progress-green' :
+                                  calculateAvailability(a) >= 50 ? 'progress-yellow' : 'progress-red'
+                                }`}
+                                style={{ width: `${calculateAvailability(a)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {/* Timeline */}
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {(a.statusHistory || []).map((entry, idx) => (
+                              <div key={idx} className="flex items-start gap-3 text-sm">
+                                <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                                  entry.status === 'active' ? 'bg-green-500' :
+                                  entry.status === 'maintenance' ? 'bg-red-500' : 'bg-gray-500'
+                                }`}></div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium capitalize">{entry.status}</span>
+                                    <span className="text-gray-500 text-xs">{entry.date}</span>
+                                    {idx === 0 && <span className="text-xs bg-blue-600 px-1.5 py-0.5 rounded">Current</span>}
+                                  </div>
+                                  {entry.reason && (
+                                    <div className="text-gray-400 text-xs truncate">{entry.reason}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {(!a.statusHistory || a.statusHistory.length === 0) && (
+                              <div className="text-gray-500 text-sm">No status history recorded</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Status Change */}
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <div className="text-xs text-gray-500 uppercase mb-2">Quick Status Change</div>
+                      <div className="flex flex-wrap gap-2">
+                        {a.status !== 'active' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openStatusChangeModal(a.id, 'active'); }}
+                            className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded-lg text-sm font-medium transition"
+                          >
+                            Return to Active
+                          </button>
+                        )}
+                        {a.status !== 'maintenance' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openStatusChangeModal(a.id, 'maintenance'); }}
+                            className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-sm font-medium transition"
+                          >
+                            Send to Maintenance
+                          </button>
+                        )}
+                        {a.status !== 'grounded' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openStatusChangeModal(a.id, 'grounded'); }}
+                            className="px-3 py-1.5 bg-gray-600/50 hover:bg-gray-600 text-gray-300 rounded-lg text-sm font-medium transition"
+                          >
+                            Ground Aircraft
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-gray-700 flex flex-wrap gap-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); openEditModal(a); }}
+                        className="px-4 py-2 btn-primary-gradient rounded-lg text-sm font-medium transition"
+                      >
+                        Edit Aircraft
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(a.id); }}
+                        className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-sm font-medium transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+      </>
+      )}
+
+      {/* ============ METRICS VIEW ============ */}
+      {currentView === 'metrics' && (
+      <div className="space-y-6">
+        {/* Fleet Health Score */}
+        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
+          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Fleet Health</div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <div className="h-4 bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all ${
+                    stats.total === 0 ? 'bg-gray-600' :
+                    (stats.active / stats.total) >= 0.8 ? 'bg-green-500' :
+                    (stats.active / stats.total) >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: stats.total === 0 ? '0%' : `${(stats.active / stats.total) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+            <div className="text-2xl font-bold">
+              {stats.total === 0 ? '0' : Math.round((stats.active / stats.total) * 100)}% Available
+            </div>
+          </div>
+          <div className="text-gray-400 text-sm mt-2">
+            {stats.active} of {stats.total} aircraft ready to fly
+          </div>
+        </div>
+
+        {/* Productivity Ranking */}
+        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
+          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Productivity Ranking</div>
+          <div className="space-y-3">
+            {[...aircraft]
+              .sort((a, b) => b.totalHours - a.totalHours)
+              .map((a, index) => {
+                const maxHours = Math.max(...aircraft.map(ac => ac.totalHours), 1);
+                const barWidth = (a.totalHours / maxHours) * 100;
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
+                
+                return (
+                  <div key={a.id} className="flex items-center gap-3">
+                    <div className="w-6 text-center">{medal}</div>
+                    <div className="w-24 font-medium truncate">{a.name}</div>
+                    <div className="flex-1">
+                      <div className="h-6 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full flex items-center justify-end pr-2 text-xs font-medium ${
+                            a.status === 'active' ? 'bg-blue-600' :
+                            a.status === 'maintenance' ? 'bg-red-600' : 'bg-gray-600'
+                          }`}
+                          style={{ width: `${Math.max(barWidth, 15)}%` }}
+                        >
+                          {a.totalHours.toFixed(1)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`w-20 text-right text-sm ${
+                      a.status === 'active' ? 'text-green-400' :
+                      a.status === 'maintenance' ? 'text-red-400' : 'text-gray-500'
+                    }`}>
+                      {a.status === 'active' ? '● Active' :
+                       a.status === 'maintenance' ? '⚠ Maint' : '⛔ Down'}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+          {aircraft.length === 0 && (
+            <div className="text-center text-gray-500 py-8">No aircraft in fleet</div>
+          )}
+        </div>
+
+        {/* Availability Tracking */}
+        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
+          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Availability Tracking</div>
+          <div className="space-y-4">
+            {[...aircraft]
+              .sort((a, b) => calculateAvailability(b) - calculateAvailability(a))
+              .map(a => {
+                const availability = calculateAvailability(a);
+                const days = calculateStatusDays(a);
+                const daysSinceChange = daysSinceStatusChange(a);
+                
+                return (
+                  <div key={a.id} className="bg-gray-750 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          a.status === 'active' ? 'bg-green-500' :
+                          a.status === 'maintenance' ? 'bg-red-500' : 'bg-gray-500'
+                        }`}></div>
+                        <span className="font-medium">{a.name}</span>
+                      </div>
+                      <div className={`text-lg font-bold ${
+                        availability >= 80 ? 'text-green-400' :
+                        availability >= 50 ? 'text-yellow-400' : 'text-red-400'
+                      }`}>
+                        {availability}%
+                      </div>
+                    </div>
+                    
+                    {/* Availability bar */}
+                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden mb-3">
+                      <div
+                        className={`h-full rounded-full ${
+                          availability >= 80 ? 'progress-green' :
+                          availability >= 50 ? 'progress-yellow' : 'progress-red'
+                        }`}
+                        style={{ width: `${availability}%` }}
+                      ></div>
+                    </div>
+                    
+                    {/* Days breakdown */}
+                    <div className="flex gap-4 text-xs">
+                      <span className="text-green-400">{days.active}d active</span>
+                      <span className="text-red-400">{days.maintenance}d maint</span>
+                      <span className="text-gray-400">{days.grounded}d grounded</span>
+                      <span className="text-gray-500 ml-auto">
+                        {a.status} for {daysSinceChange}d
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+          {aircraft.length === 0 && (
+            <div className="text-center text-gray-500 py-8">No aircraft in fleet</div>
+          )}
+        </div>
+
+        {/* Attention Needed */}
+        <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
+          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Icons.AlertTriangle /> Attention Needed
+          </div>
+          <div className="space-y-2">
+            {/* Overdue maintenance */}
+            {aircraft
+              .filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active')
+              .map(a => (
+                <div key={`overdue-${a.id}`} className="flex items-center gap-3 text-red-400 bg-red-900/20 rounded-lg px-3 py-2">
+                  <span className="text-red-500">●</span>
+                  <span className="font-medium">{a.name}</span>
+                  <span className="text-sm text-red-300">
+                    overdue for maintenance by {(a.totalHours - a.maintenanceInterval).toFixed(1)} hrs
+                  </span>
+                </div>
+              ))}
+            
+            {/* Due soon */}
+            {aircraft
+              .filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active')
+              .map(a => (
+                <div key={`due-${a.id}`} className="flex items-center gap-3 text-yellow-400 bg-yellow-900/20 rounded-lg px-3 py-2">
+                  <span className="text-yellow-500">●</span>
+                  <span className="font-medium">{a.name}</span>
+                  <span className="text-sm text-yellow-300">
+                    maintenance due in {(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs
+                  </span>
+                </div>
+              ))}
+            
+            {/* Grounded aircraft */}
+            {aircraft
+              .filter(a => a.status === 'grounded')
+              .map(a => {
+                const daysDown = daysSinceStatusChange(a);
+                return (
+                  <div key={`grounded-${a.id}`} className="flex items-center gap-3 text-gray-400 bg-gray-700/50 rounded-lg px-3 py-2">
+                    <span className="text-gray-500">●</span>
+                    <span className="font-medium">{a.name}</span>
+                    <span className="text-sm text-gray-400">
+                      grounded for {daysDown} days {a.statusHistory?.[0]?.reason ? `- ${a.statusHistory[0].reason}` : ''}
+                    </span>
+                  </div>
+                );
+              })}
+            
+            {/* In maintenance */}
+            {aircraft
+              .filter(a => a.status === 'maintenance')
+              .map(a => {
+                const daysDown = daysSinceStatusChange(a);
+                return (
+                  <div key={`maint-${a.id}`} className="flex items-center gap-3 text-orange-400 bg-orange-900/20 rounded-lg px-3 py-2">
+                    <span className="text-orange-500">●</span>
+                    <span className="font-medium">{a.name}</span>
+                    <span className="text-sm text-orange-300">
+                      in maintenance for {daysDown} days {a.statusHistory?.[0]?.reason ? `- ${a.statusHistory[0].reason}` : ''}
+                    </span>
+                  </div>
+                );
+              })}
+
+            {/* Lowest utilization */}
+            {aircraft.length > 2 && (() => {
+              const sorted = [...aircraft].sort((a, b) => a.totalHours - b.totalHours);
+              const lowest = sorted[0];
+              const highest = sorted[sorted.length - 1];
+              if (lowest && highest && lowest.totalHours < highest.totalHours * 0.3 && lowest.status === 'active') {
+                return (
+                  <div className="flex items-center gap-3 text-blue-400 bg-blue-900/20 rounded-lg px-3 py-2">
+                    <span className="text-blue-500">●</span>
+                    <span className="font-medium">{lowest.name}</span>
+                    <span className="text-sm text-blue-300">
+                      lowest utilization ({lowest.totalHours.toFixed(1)} hrs) - review assignment
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* No issues */}
+            {aircraft.filter(a => 
+              a.status !== 'active' || 
+              a.totalHours >= a.maintenanceInterval * 0.8
+            ).length === 0 && aircraft.length > 0 && (
+              <div className="flex items-center gap-3 text-green-400 bg-green-900/20 rounded-lg px-3 py-2">
+                <span className="text-green-500">✓</span>
+                <span>All systems operational - no issues detected</span>
+              </div>
+            )}
+
+            {aircraft.length === 0 && (
+              <div className="text-center text-gray-500 py-4">Add aircraft to see metrics</div>
+            )}
+          </div>
+        </div>
+
+        {/* Fleet Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+            <div className="text-2xl font-bold text-white">
+              {aircraft.reduce((sum, a) => sum + a.totalHours, 0).toFixed(1)}
+            </div>
+            <div className="text-gray-400 text-sm">Total Fleet Hours</div>
+          </div>
+          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+            <div className="text-2xl font-bold text-white">
+              {aircraft.length > 0 ? (aircraft.reduce((sum, a) => sum + a.totalHours, 0) / aircraft.length).toFixed(1) : '0'}
+            </div>
+            <div className="text-gray-400 text-sm">Avg Hours/Aircraft</div>
+          </div>
+          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+            <div className={`text-2xl font-bold ${
+              aircraft.length > 0 && (aircraft.reduce((sum, a) => sum + calculateAvailability(a), 0) / aircraft.length) >= 80 
+                ? 'text-green-400' 
+                : aircraft.length > 0 && (aircraft.reduce((sum, a) => sum + calculateAvailability(a), 0) / aircraft.length) >= 50
+                ? 'text-yellow-400'
+                : 'text-red-400'
+            }`}>
+              {aircraft.length > 0 ? Math.round(aircraft.reduce((sum, a) => sum + calculateAvailability(a), 0) / aircraft.length) : '0'}%
+            </div>
+            <div className="text-gray-400 text-sm">Avg Availability</div>
+          </div>
+          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+            <div className="text-2xl font-bold text-white">
+              {aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length}
+            </div>
+            <div className="text-gray-400 text-sm">Maintenance Overdue</div>
+          </div>
+          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg">
+            <div className="text-2xl font-bold text-white">
+              {aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').length}
+            </div>
+            <div className="text-gray-400 text-sm">Maintenance Soon</div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) setDeleteConfirm(null); }}
+        >
+          <div
+            className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl modal-animate"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2">Delete Aircraft?</h3>
+            <p className="text-gray-400 mb-6">
+              Are you sure you want to delete <strong>{aircraft.find(a => a.id === deleteConfirm)?.name}</strong>? This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {resetConfirm && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) setResetConfirm(false); }}
+        >
+          <div
+            className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl modal-animate"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2">Reset All Data?</h3>
+            <p className="text-gray-400 mb-6">
+              This will replace your entire fleet with sample aircraft. <strong>This cannot be undone.</strong>
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setResetConfirm(false)}
+                className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReset}
+                className="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition"
+              >
+                Reset Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Modal */}
+      {statusChangeModal && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) { setStatusChangeModal(null); setPendingEditSave(null); setStatusChangeReason(''); }}}
+        >
+          <div
+            className="bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl modal-animate"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2">
+              {pendingEditSave ? 'Status Change Detected' : 'Change Status'}
+            </h3>
+            <p className="text-gray-400 mb-4">
+              {pendingEditSave ? (
+                <>You are changing <strong>{pendingEditSave.preparedData.name}</strong> status to{' '}</>
+              ) : (
+                <>Change <strong>{aircraft.find(a => a.id === statusChangeModal.aircraftId)?.name}</strong> to{' '}</>
+              )}
+              <span className={`font-medium ${
+                statusChangeModal.newStatus === 'active' ? 'text-green-400' :
+                statusChangeModal.newStatus === 'maintenance' ? 'text-red-400' : 'text-gray-400'
+              }`}>
+                {statusChangeModal.newStatus}
+              </span>
+              {pendingEditSave && <span className="text-gray-500 block mt-1 text-sm">Please provide a reason for the status change.</span>}
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm text-gray-400 mb-2">Reason for change *</label>
+              <input
+                type="text"
+                value={statusChangeReason}
+                onChange={(e) => setStatusChangeReason(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                placeholder={
+                  statusChangeModal.newStatus === 'active' ? 'e.g., Maintenance complete, Parts installed' :
+                  statusChangeModal.newStatus === 'maintenance' ? 'e.g., Scheduled service, Motor replacement' :
+                  'e.g., Awaiting parts, Regulatory hold'
+                }
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setStatusChangeModal(null); setPendingEditSave(null); setStatusChangeReason(''); }}
+                className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStatusChange}
+                disabled={!statusChangeReason.trim()}
+                className={`flex-1 py-2 rounded-lg font-medium transition ${
+                  statusChangeReason.trim() 
+                    ? statusChangeModal.newStatus === 'active' ? 'bg-green-600 hover:bg-green-700' :
+                      statusChangeModal.newStatus === 'maintenance' ? 'bg-red-600 hover:bg-red-700' :
+                      'bg-gray-600 hover:bg-gray-500'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {pendingEditSave ? 'Save Changes' : 'Confirm Change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 overflow-y-auto modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+        >
+          <div className="min-h-full flex items-start justify-center p-4 py-8">
+            <div
+              className="bg-gray-800 rounded-2xl w-full max-w-2xl shadow-2xl modal-animate"
+              onClick={(e) => e.stopPropagation()}
+            >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800 rounded-t-xl">
+              <h2 className="text-lg font-semibold">
+                {editingId ? 'Edit Aircraft' : 'Add Aircraft'}
+              </h2>
+              <button 
+                onClick={closeModal}
+                className="p-2 hover:bg-gray-700 rounded-lg transition"
+              >
+                <Icons.X />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-6">
+              {/* Identity Section */}
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-medium">Identity</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Aircraft ID / Name *</label>
+                    <input
+                      type="text"
+                      value={formData.name || ''}
+                      onChange={(e) => updateForm('name', e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., RAVEN-01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Status</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormData(prev => ({ ...prev, status: 'active' })); }}
+                        className={`flex-1 py-2 rounded-lg transition text-sm cursor-pointer flex items-center justify-center gap-2 ${
+                          formData.status === 'active' 
+                            ? 'bg-green-600 text-white' 
+                            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-green-400"></span> Active
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormData(prev => ({ ...prev, status: 'maintenance' })); }}
+                        className={`flex-1 py-2 rounded-lg transition text-sm cursor-pointer flex items-center justify-center gap-2 ${
+                          formData.status === 'maintenance' 
+                            ? 'bg-red-600 text-white' 
+                            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-red-400"></span> Maintenance
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormData(prev => ({ ...prev, status: 'grounded' })); }}
+                        className={`flex-1 py-2 rounded-lg transition text-sm cursor-pointer flex items-center justify-center gap-2 ${
+                          formData.status === 'grounded' 
+                            ? 'bg-gray-500 text-white' 
+                            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-gray-400"></span> Grounded
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Airframe Section */}
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-medium">Airframe</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Airframe Type</label>
+                    {airframeTypes.includes(formData.airframeType) ? (
+                      <select
+                        value={formData.airframeType || 'Quadcopter'}
+                        onChange={(e) => updateForm('airframeType', e.target.value === 'Custom' ? '' : e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      >
+                        {airframeTypes.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.airframeType || ''}
+                          onChange={(e) => updateForm('airframeType', e.target.value)}
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                          placeholder="Enter custom airframe type..."
+                          
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateForm('airframeType', 'Quadcopter')}
+                          className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm"
+                          title="Back to list"
+                        >
+<Icons.XSmall />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Total Flight Hours</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.totalHours === '' ? '' : formData.totalHours}
+                      onChange={(e) => updateForm('totalHours', e.target.value === '' ? '' : e.target.value)}
+                      onBlur={(e) => updateForm('totalHours', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Weight (lbs)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.weight === '' ? '' : formData.weight}
+                      onChange={(e) => updateForm('weight', e.target.value === '' ? '' : e.target.value)}
+                      onBlur={(e) => updateForm('weight', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Max Takeoff Weight (lbs)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.maxWeight === '' ? '' : formData.maxWeight}
+                      onChange={(e) => updateForm('maxWeight', e.target.value === '' ? '' : e.target.value)}
+                      onBlur={(e) => updateForm('maxWeight', e.target.value === '' ? 55 : parseFloat(e.target.value))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Maintenance Interval (hrs)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.maintenanceInterval === '' ? '' : formData.maintenanceInterval}
+                      onChange={(e) => updateForm('maintenanceInterval', e.target.value === '' ? '' : e.target.value)}
+                      onBlur={(e) => updateForm('maintenanceInterval', e.target.value === '' ? 200 : parseFloat(e.target.value))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Last Flight Date</label>
+                    <input
+                      type="date"
+                      value={formData.lastFlight || ''}
+                      onChange={(e) => updateForm('lastFlight', e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Systems Section */}
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-medium">Systems</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Flight Controller</label>
+                    {fcOptions.includes(formData.flightController) ? (
+                      <select
+                        value={formData.flightController || 'Pixhawk 6C'}
+                        onChange={(e) => updateForm('flightController', e.target.value === 'Custom' ? '' : e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      >
+                        {fcOptions.map(fc => (
+                          <option key={fc} value={fc}>{fc}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.flightController || ''}
+                          onChange={(e) => updateForm('flightController', e.target.value)}
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                          placeholder="Enter custom FC..."
+                          
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateForm('flightController', 'Pixhawk 6C')}
+                          className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm"
+                          title="Back to list"
+                        >
+<Icons.XSmall />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">FC Firmware Version</label>
+                    <input
+                      type="text"
+                      value={formData.fcFirmware || ''}
+                      onChange={(e) => updateForm('fcFirmware', e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., ArduCopter 4.4.0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Companion Computer</label>
+                    {companionOptions.includes(formData.companionComputer) ? (
+                      <select
+                        value={formData.companionComputer || 'None'}
+                        onChange={(e) => updateForm('companionComputer', e.target.value === 'Custom' ? '' : e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      >
+                        {companionOptions.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.companionComputer || ''}
+                          onChange={(e) => updateForm('companionComputer', e.target.value)}
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                          placeholder="Enter custom computer..."
+                          
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateForm('companionComputer', 'None')}
+                          className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm"
+                          title="Back to list"
+                        >
+<Icons.XSmall />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Companion OS / Version</label>
+                    <input
+                      type="text"
+                      value={formData.companionOS || ''}
+                      onChange={(e) => updateForm('companionOS', e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Ubuntu 22.04"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Radio Section */}
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-medium">Radio Configuration</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Primary Link</label>
+                    {radioOptions.includes(formData.primaryRadio) ? (
+                      <select
+                        value={formData.primaryRadio || 'LTE'}
+                        onChange={(e) => updateForm('primaryRadio', e.target.value === 'Custom' ? '' : e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      >
+                        {radioOptions.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                        <option value="Custom">Custom...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.primaryRadio || ''}
+                          onChange={(e) => updateForm('primaryRadio', e.target.value)}
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                          placeholder="Enter custom radio type..."
+                          
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateForm('primaryRadio', 'LTE')}
+                          className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm"
+                          title="Back to list"
+                        >
+<Icons.XSmall />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Backup Link</label>
+                    {radioOptions.includes(formData.backupRadio) ? (
+                      <select
+                        value={formData.backupRadio || 'None'}
+                        onChange={(e) => updateForm('backupRadio', e.target.value === 'Custom' ? '' : e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                      >
+                        {radioOptions.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                        <option value="Custom">Custom...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.backupRadio || ''}
+                          onChange={(e) => updateForm('backupRadio', e.target.value)}
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                          placeholder="Enter custom radio type..."
+                          
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateForm('backupRadio', 'None')}
+                          className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm"
+                          title="Back to list"
+                        >
+<Icons.XSmall />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Location Section */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Location</label>
+                <input
+                  type="text"
+                  value={formData.location || ''}
+                  onChange={(e) => updateForm('location', e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g., Hangar A, Field Site 1, Storage"
+                />
+              </div>
+
+              {/* Notes Section */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Notes</label>
+                <textarea
+                  value={formData.notes || ''}
+                  onChange={(e) => updateForm('notes', e.target.value)}
+                  rows={3}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 resize-none"
+                  placeholder="Additional notes, maintenance history, special configurations..."
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex gap-3 p-4 border-t border-gray-700 bg-gray-800 rounded-b-xl">
+              <button
+                onClick={closeModal}
+                className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 py-2.5 btn-primary-gradient rounded-lg font-medium transition flex items-center justify-center gap-2"
+              >
+                <Icons.Check /> {editingId ? 'Save Changes' : 'Add Aircraft'}
+              </button>
+            </div>
+          </div>
+          </div>
+        </div>
+      )}
+      {/* Footer */}
+      <div className="mt-10 pb-2 text-center">
+        <div className="text-[10px] text-gray-700 tracking-wider">
+          UAS Fleet Tracker v{APP_VERSION}{dataPath && <span className="mx-2">·</span>}{dataPath && <span className="text-gray-700/60" title={dataPath}>{dataPath}</span>}
+        </div>
+      </div>
+      </>
+      )}
+    </div>
+  );
+}
