@@ -215,6 +215,27 @@ const daysSinceStatusChange = (aircraft) => {
   return daysBetween(history[0].date, today);
 };
 
+// Helper: Get date aircraft was added to fleet (oldest statusHistory entry)
+const getAddedDate = (aircraft) => {
+  const history = aircraft.statusHistory || [];
+  if (history.length === 0) return aircraft.lastFlight || '2024-01-01';
+  return history[history.length - 1].date; // oldest entry (history is newest-first)
+};
+
+// Helper: Filter aircraft that existed during a period
+const aircraftInPeriod = (allAircraft, rangeTo) => {
+  return allAircraft.filter(a => getAddedDate(a) <= rangeTo);
+};
+
+// Helper: Get flight hours within a date range from flight log
+const getHoursInRange = (aircraft, rangeFrom, rangeTo) => {
+  const logs = aircraft.flightLog || [];
+  if (logs.length === 0) return null; // null = no log data, show totalHours as fallback
+  return logs
+    .filter(entry => entry.date >= rangeFrom && entry.date <= rangeTo)
+    .reduce((sum, entry) => sum + entry.hours, 0);
+};
+
 const radioOptions = ['LTE', 'RF 900MHz', 'RF 2.4GHz', 'Starlink', 'Mesh', 'None'];
 const fcOptions = ['Pixhawk 6C', 'Pixhawk 4', 'Cube Orange', 'Cube Black', 'DJI N3', 'Custom'];
 const companionOptions = ['None', 'Raspberry Pi 4', 'Raspberry Pi 5', 'Jetson Nano', 'Jetson Xavier', 'Intel NUC', 'Custom'];
@@ -510,10 +531,12 @@ export default function App() {
     const newTotal = Math.round((ac.totalHours + hours) * 10) / 10;
     setAircraft(prev => prev.map(a => {
       if (a.id === parseInt(quickLogAircraft)) {
+        const flightLog = a.flightLog || [];
         return {
           ...a,
           totalHours: newTotal,
-          lastFlight: quickLogDate
+          lastFlight: quickLogDate,
+          flightLog: [...flightLog, { date: quickLogDate, hours: hours }]
         };
       }
       return a;
@@ -1714,53 +1737,58 @@ export default function App() {
         </div>
 
         {/* Row 1: Readiness + Summary Stats */}
+        {(() => {
+          // Filter to aircraft that existed during the selected period
+          const pa = aircraftInPeriod(aircraft, metricsTo);
+          const paActive = pa.filter(a => a.status === 'active').length;
+          const paMaint = pa.filter(a => a.status === 'maintenance').length;
+          const paDown = pa.filter(a => a.status === 'grounded').length;
+          const avgAvail = pa.length > 0 ? Math.round(pa.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / pa.length) : 0;
+          const periodHours = pa.map(a => { const h = getHoursInRange(a, metricsFrom, metricsTo); return h !== null ? h : a.totalHours; });
+          const totalPeriodHours = periodHours.reduce((s, h) => s + h, 0);
+          const hasLogData = pa.some(a => (a.flightLog || []).length > 0);
+          return (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Fleet Readiness — big number */}
+          {/* Fleet Readiness — availability-based for the period */}
           <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 flex flex-col items-center justify-center">
-            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Fleet Readiness</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Avg Availability</div>
             <div className={`text-5xl font-bold ${
-              stats.total === 0 ? 'text-gray-600' :
-              (stats.active / stats.total) >= 0.8 ? 'text-green-400' :
-              (stats.active / stats.total) >= 0.5 ? 'text-yellow-400' : 'text-red-400'
-            }`}>
-              {stats.total === 0 ? '—' : Math.round((stats.active / stats.total) * 100)}%
-            </div>
-            <div className="text-sm text-gray-400 mt-2">{stats.active} of {stats.total} ready to fly</div>
-            {/* Mini status breakdown */}
+              avgAvail >= 80 ? 'text-green-400' : avgAvail >= 50 ? 'text-yellow-400' : 'text-red-400'
+            }`}>{pa.length === 0 ? '—' : `${avgAvail}%`}</div>
+            <div className="text-sm text-gray-400 mt-2">{pa.length} aircraft in period</div>
             <div className="flex gap-4 mt-3 text-xs">
-              <span className="text-green-400">{stats.active} active</span>
-              <span className="text-red-400">{stats.maintenance} maint</span>
-              <span className="text-gray-500">{stats.grounded} down</span>
+              <span className="text-green-400">{paActive} active</span>
+              <span className="text-red-400">{paMaint} maint</span>
+              <span className="text-gray-500">{paDown} down</span>
             </div>
           </div>
 
           {/* Summary Stats Grid */}
           <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Fleet Hours</div>
-              <div className="text-2xl font-bold text-white mt-1">{aircraft.reduce((sum, a) => sum + a.totalHours, 0).toFixed(0)}</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Period Hours</div>
+              <div className="text-2xl font-bold text-white mt-1">{Math.round(totalPeriodHours)}</div>
+              {!hasLogData && <div className="text-[9px] text-gray-600 mt-0.5">cumulative*</div>}
             </div>
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
               <div className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Hours</div>
-              <div className="text-2xl font-bold text-white mt-1">{aircraft.length > 0 ? (aircraft.reduce((sum, a) => sum + a.totalHours, 0) / aircraft.length).toFixed(1) : '0'}</div>
+              <div className="text-2xl font-bold text-white mt-1">{pa.length > 0 ? (totalPeriodHours / pa.length).toFixed(1) : '0'}</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
               <div className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Availability</div>
-              <div className={`text-2xl font-bold mt-1 ${
-                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / aircraft.length) >= 80 ? 'text-green-400' :
-                aircraft.length > 0 && (aircraft.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / aircraft.length) >= 50 ? 'text-yellow-400' : 'text-red-400'
-              }`}>{aircraft.length > 0 ? Math.round(aircraft.reduce((s, a) => s + calculateAvailability(a, metricsFrom, metricsTo), 0) / aircraft.length) : '0'}%</div>
+              <div className={`text-2xl font-bold mt-1 ${avgAvail >= 80 ? 'text-green-400' : avgAvail >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{avgAvail}%</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
               <div className="text-[10px] text-gray-500 uppercase tracking-wider">Alerts</div>
               <div className={`text-2xl font-bold mt-1 ${
-                (aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length +
-                 aircraft.filter(a => a.status === 'grounded').length) > 0 ? 'text-red-400' : 'text-green-400'
+                (pa.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length +
+                 pa.filter(a => a.status === 'grounded').length) > 0 ? 'text-red-400' : 'text-green-400'
               }`}>{
-                aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length +
-                aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').length +
-                aircraft.filter(a => a.status === 'grounded').length +
-                aircraft.filter(a => a.status === 'maintenance').length
+                pa.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').length +
+                pa.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').length +
+                pa.filter(a => a.status === 'grounded').length +
+                pa.filter(a => a.status === 'maintenance').length
               }</div>
             </div>
           </div>
@@ -1769,11 +1797,11 @@ export default function App() {
         {/* Row 2: Maintenance Forecast */}
         <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
           <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Maintenance Forecast</div>
-          {aircraft.length === 0 ? (
-            <div className="text-center text-gray-600 py-6">No aircraft</div>
+          {pa.length === 0 ? (
+            <div className="text-center text-gray-600 py-6">No aircraft in period</div>
           ) : (
             <div className="space-y-2.5">
-              {[...aircraft]
+              {[...pa]
                 .sort((a, b) => (a.maintenanceInterval - a.totalHours) - (b.maintenanceInterval - b.totalHours))
                 .map(a => {
                   const remaining = a.maintenanceInterval - a.totalHours;
@@ -1814,18 +1842,19 @@ export default function App() {
         {/* Row 3: Utilization + Availability side by side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Utilization Ranking */}
+          {/* Utilization Ranking — uses flight log for period, falls back to totalHours */}
           <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Utilization Ranking</div>
-            {aircraft.length === 0 ? (
-              <div className="text-center text-gray-600 py-6">No aircraft</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Utilization — Period Hours</div>
+            {pa.length === 0 ? (
+              <div className="text-center text-gray-600 py-6">No aircraft in period</div>
             ) : (
               <div className="space-y-2">
-                {[...aircraft]
-                  .sort((a, b) => b.totalHours - a.totalHours)
+                {[...pa]
+                  .map(a => ({ ...a, periodHours: getHoursInRange(a, metricsFrom, metricsTo) ?? a.totalHours, hasLog: (a.flightLog || []).length > 0 }))
+                  .sort((a, b) => b.periodHours - a.periodHours)
                   .map((a, index) => {
-                    const maxHours = Math.max(...aircraft.map(ac => ac.totalHours), 1);
-                    const barWidth = (a.totalHours / maxHours) * 100;
+                    const maxH = Math.max(...pa.map(ac => getHoursInRange(ac, metricsFrom, metricsTo) ?? ac.totalHours), 1);
+                    const barW = (a.periodHours / maxH) * 100;
                     return (
                       <div key={a.id} className="flex items-center gap-2">
                         <div className="w-5 text-xs text-gray-600 text-right">{index + 1}</div>
@@ -1833,13 +1862,16 @@ export default function App() {
                         <div className="flex-1 h-5 bg-gray-700 rounded overflow-hidden">
                           <div className={`h-full rounded flex items-center pl-2 text-[10px] font-semibold text-white/90 ${
                             a.status === 'active' ? 'bg-blue-600' : a.status === 'maintenance' ? 'bg-red-600/80' : 'bg-gray-600'
-                          }`} style={{ width: `${Math.max(barWidth, 20)}%` }}>
-                            {a.totalHours.toFixed(1)}h
+                          }`} style={{ width: `${Math.max(barW, 20)}%` }}>
+                            {a.periodHours.toFixed(1)}h{!a.hasLog ? '*' : ''}
                           </div>
                         </div>
                       </div>
                     );
                   })}
+                {!pa.some(a => (a.flightLog || []).length > 0) && (
+                  <div className="text-[9px] text-gray-600 mt-2">* No flight log — showing cumulative totals. Log flights to enable period filtering.</div>
+                )}
               </div>
             )}
           </div>
@@ -1847,11 +1879,11 @@ export default function App() {
           {/* Availability Breakdown */}
           <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
             <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Availability Breakdown</div>
-            {aircraft.length === 0 ? (
-              <div className="text-center text-gray-600 py-6">No aircraft</div>
+            {pa.length === 0 ? (
+              <div className="text-center text-gray-600 py-6">No aircraft in period</div>
             ) : (
               <div className="space-y-3">
-                {[...aircraft]
+                {[...pa]
                   .sort((a, b) => calculateAvailability(b, metricsFrom, metricsTo) - calculateAvailability(a, metricsFrom, metricsTo))
                   .map(a => {
                     const avail = calculateAvailability(a, metricsFrom, metricsTo);
@@ -1870,7 +1902,6 @@ export default function App() {
                             avail >= 80 ? 'text-green-400' : avail >= 50 ? 'text-yellow-400' : 'text-red-400'
                           }`}>{avail}%</span>
                         </div>
-                        {/* Stacked bar: green/red/gray proportional */}
                         <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden flex">
                           <div className="h-full bg-green-600" style={{ width: `${(days.active / total) * 100}%` }}></div>
                           <div className="h-full bg-red-500" style={{ width: `${(days.maintenance / total) * 100}%` }}></div>
@@ -1896,7 +1927,7 @@ export default function App() {
             <Icons.AlertTriangle /> Action Items
           </div>
           <div className="space-y-1.5">
-            {aircraft.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').map(a => (
+            {pa.filter(a => a.totalHours >= a.maintenanceInterval && a.status === 'active').map(a => (
               <div key={`o-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-red-900/15 border border-red-900/30">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></div>
                 <span className="text-sm font-medium text-red-300">{a.name}</span>
@@ -1904,14 +1935,14 @@ export default function App() {
                 <button onClick={() => openStatusChangeModal(a.id, 'maintenance')} className="ml-auto text-xs px-2 py-1 rounded bg-red-600/30 hover:bg-red-600/50 text-red-300 transition">Send to Maint</button>
               </div>
             ))}
-            {aircraft.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').map(a => (
+            {pa.filter(a => a.totalHours >= a.maintenanceInterval * 0.8 && a.totalHours < a.maintenanceInterval && a.status === 'active').map(a => (
               <div key={`w-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-yellow-900/10 border border-yellow-900/20">
                 <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 flex-shrink-0"></div>
                 <span className="text-sm font-medium text-yellow-300">{a.name}</span>
                 <span className="text-xs text-yellow-400/70">{(a.maintenanceInterval - a.totalHours).toFixed(1)} hrs until service</span>
               </div>
             ))}
-            {aircraft.filter(a => a.status === 'grounded').map(a => (
+            {pa.filter(a => a.status === 'grounded').map(a => (
               <div key={`g-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-700/30 border border-gray-700">
                 <div className="w-1.5 h-1.5 rounded-full bg-gray-500 flex-shrink-0"></div>
                 <span className="text-sm font-medium text-gray-300">{a.name}</span>
@@ -1919,7 +1950,7 @@ export default function App() {
                 <button onClick={() => openStatusChangeModal(a.id, 'active')} className="ml-auto text-xs px-2 py-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-400 transition">Reactivate</button>
               </div>
             ))}
-            {aircraft.filter(a => a.status === 'maintenance').map(a => (
+            {pa.filter(a => a.status === 'maintenance').map(a => (
               <div key={`m-${a.id}`} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-orange-900/10 border border-orange-900/20">
                 <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0"></div>
                 <span className="text-sm font-medium text-orange-300">{a.name}</span>
@@ -1927,17 +1958,20 @@ export default function App() {
                 <button onClick={() => openStatusChangeModal(a.id, 'active')} className="ml-auto text-xs px-2 py-1 rounded bg-green-600/20 hover:bg-green-600/40 text-green-400 transition">Return</button>
               </div>
             ))}
-            {aircraft.filter(a => a.status !== 'active' || a.totalHours >= a.maintenanceInterval * 0.8).length === 0 && aircraft.length > 0 && (
+            {pa.filter(a => a.status !== 'active' || a.totalHours >= a.maintenanceInterval * 0.8).length === 0 && pa.length > 0 && (
               <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-green-900/10 border border-green-900/20 text-green-400">
                 <Icons.Check />
                 <span className="text-sm">All systems operational — no action required</span>
               </div>
             )}
-            {aircraft.length === 0 && (
-              <div className="text-center text-gray-600 py-4">Add aircraft to see metrics</div>
+            {pa.length === 0 && (
+              <div className="text-center text-gray-600 py-4">No aircraft in selected period</div>
             )}
           </div>
         </div>
+        </>
+          );
+        })()}
       </div>
       )}
 
