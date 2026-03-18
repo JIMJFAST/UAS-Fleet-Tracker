@@ -857,10 +857,16 @@ export default function App() {
     showNotification(`${ac?.name} removed from fleet`, 'success');
   };
 
+  // Complete service state
+  const [serviceComplete, setServiceComplete] = useState(false);
+
   // Open status change modal
   const openStatusChangeModal = (aircraftId, newStatus) => {
     setStatusChangeModal({ aircraftId, newStatus });
     setStatusChangeReason('');
+    // Auto-check "service complete" when returning from maintenance to active
+    const ac = aircraft.find(a => a.id === aircraftId);
+    setServiceComplete(newStatus === 'active' && ac?.status === 'maintenance');
   };
 
   // Handle status change with reason
@@ -902,18 +908,29 @@ export default function App() {
             date: today,
             reason: statusChangeReason || `Changed to ${newStatus}`
           };
-          
+
           const currentHistory = a.statusHistory || [];
-          
+
+          // Bump maintenance interval if service is complete
+          let newInterval = a.maintenanceInterval;
+          const cycle = a.maintenanceCycle || a.maintenanceInterval;
+          if (serviceComplete && newStatus === 'active') {
+            newInterval = Math.ceil(a.totalHours / cycle) * cycle;
+            if (newInterval <= a.totalHours) newInterval += cycle;
+            log.status('Service Complete', `${a.name}: next service at ${newInterval} hrs (cycle: ${cycle})`);
+          }
+
           return {
             ...a,
             status: newStatus,
+            maintenanceInterval: newInterval,
+            maintenanceCycle: cycle,
             statusHistory: [newHistoryEntry, ...currentHistory]
           };
         }
         return a;
       }));
-      
+
       const acName = aircraft.find(a => a.id === aircraftId)?.name;
       log.status('Changed (quick)', `${acName}: → ${newStatus} (${statusChangeReason || 'No reason'})`);
       showNotification(`${acName} status changed to ${newStatus}`, 'success');
@@ -921,6 +938,7 @@ export default function App() {
 
     setStatusChangeModal(null);
     setStatusChangeReason('');
+    setServiceComplete(false);
   };
 
   // Toggle row expand
@@ -2231,9 +2249,34 @@ export default function App() {
               />
             </div>
 
+            {/* Service Complete checkbox — shows when returning to active from maintenance */}
+            {statusChangeModal.newStatus === 'active' && (() => {
+              const ac = aircraft.find(a => a.id === statusChangeModal.aircraftId);
+              if (ac && ac.status === 'maintenance') {
+                const cycle = ac.maintenanceCycle || ac.maintenanceInterval;
+                let nextDue = Math.ceil(ac.totalHours / cycle) * cycle;
+                if (nextDue <= ac.totalHours) nextDue += cycle;
+                return (
+                  <div className="mb-4 p-3 bg-green-900/20 border border-green-800/30 rounded-lg">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" checked={serviceComplete} onChange={e => setServiceComplete(e.target.checked)}
+                        className="w-4 h-4 rounded" />
+                      <div>
+                        <div className="text-sm font-medium text-green-300">Service Complete — Reset Cycle</div>
+                        <div className="text-xs text-gray-400">
+                          Next service at {nextDue} hrs (every {cycle} hrs) · Currently {ac.totalHours} hrs
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div className="flex gap-3">
               <button
-                onClick={() => { setStatusChangeModal(null); setPendingEditSave(null); setStatusChangeReason(''); }}
+                onClick={() => { setStatusChangeModal(null); setPendingEditSave(null); setStatusChangeReason(''); setServiceComplete(false); }}
                 className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
               >
                 Cancel
@@ -2242,7 +2285,7 @@ export default function App() {
                 onClick={handleStatusChange}
                 disabled={!statusChangeReason.trim()}
                 className={`flex-1 py-2 rounded-lg font-medium transition ${
-                  statusChangeReason.trim() 
+                  statusChangeReason.trim()
                     ? statusChangeModal.newStatus === 'active' ? 'bg-green-600 hover:bg-green-700' :
                       statusChangeModal.newStatus === 'maintenance' ? 'bg-red-600 hover:bg-red-700' :
                       'bg-gray-600 hover:bg-gray-500'
