@@ -40,124 +40,297 @@ const Icons = {
   List: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
 };
 
-// Initial sample data (weights in lbs)
+// Initial sample data — 10 aircraft with realistic history from Jan 2025 to present
 const initialAircraft = [
   {
-    id: 1,
-    name: 'RAVEN-01',
+    id: 1001,
+    name: 'WOLF-01',
     status: 'active',
-    totalHours: 142.5,
+    totalHours: 187.5,
     maintenanceInterval: 200,
-    lastFlight: '2025-01-15',
+    lastFlight: '2026-03-15',
+    airframeType: 'Hexacopter',
+    weight: 42,
+    maxWeight: 77,
+    flightController: 'Cube Orange',
+    fcFirmware: 'ArduCopter 4.5.1',
+    companionComputer: 'Raspberry Pi 5',
+    companionOS: 'Ubuntu 24.04',
+    primaryRadio: 'LTE',
+    backupRadio: 'RF 900MHz',
+    location: 'Hangar A',
+    notes: 'Primary spray platform - approaching maintenance',
+    flightLog: [
+      { date: '2025-01-12', hours: 4.5 }, { date: '2025-02-08', hours: 6.0 }, { date: '2025-03-15', hours: 8.2 },
+      { date: '2025-04-20', hours: 7.5 }, { date: '2025-05-10', hours: 9.0 }, { date: '2025-06-18', hours: 10.5 },
+      { date: '2025-07-22', hours: 11.0 }, { date: '2025-08-14', hours: 8.8 }, { date: '2025-09-05', hours: 7.0 },
+      { date: '2025-10-12', hours: 12.0 }, { date: '2025-11-20', hours: 6.5 }, { date: '2025-12-08', hours: 5.0 },
+      { date: '2026-01-15', hours: 14.0 }, { date: '2026-02-10', hours: 18.5 }, { date: '2026-03-15', hours: 9.0 }
+    ],
+    statusHistory: [
+      { status: 'active', date: '2025-08-20', reason: 'Returned from 100hr service' },
+      { status: 'maintenance', date: '2025-08-10', reason: '100hr scheduled maintenance' },
+      { status: 'active', date: '2025-01-05', reason: 'Added to fleet' }
+    ]
+  },
+  {
+    id: 1002,
+    name: 'WOLF-02',
+    status: 'active',
+    totalHours: 134.0,
+    maintenanceInterval: 200,
+    lastFlight: '2026-03-12',
+    airframeType: 'Hexacopter',
+    weight: 42,
+    maxWeight: 77,
+    flightController: 'Cube Orange',
+    fcFirmware: 'ArduCopter 4.5.1',
+    companionComputer: 'Raspberry Pi 5',
+    companionOS: 'Ubuntu 24.04',
+    primaryRadio: 'LTE',
+    backupRadio: 'Starlink',
+    location: 'Hangar A',
+    notes: 'Secondary spray platform',
+    flightLog: [
+      { date: '2025-03-10', hours: 3.0 }, { date: '2025-04-15', hours: 5.5 }, { date: '2025-05-22', hours: 8.0 },
+      { date: '2025-06-30', hours: 10.0 }, { date: '2025-07-18', hours: 12.0 }, { date: '2025-08-25', hours: 9.5 },
+      { date: '2025-09-15', hours: 7.0 }, { date: '2025-10-28', hours: 11.0 }, { date: '2025-11-15', hours: 8.0 },
+      { date: '2025-12-20', hours: 6.0 }, { date: '2026-01-22', hours: 15.0 }, { date: '2026-02-18', hours: 12.0 },
+      { date: '2026-03-12', hours: 10.0 }
+    ],
+    statusHistory: [
+      { status: 'active', date: '2025-03-01', reason: 'Added to fleet' }
+    ]
+  },
+  {
+    id: 1003,
+    name: 'HAWK-10',
+    status: 'maintenance',
+    totalHours: 215.3,
+    maintenanceInterval: 200,
+    lastFlight: '2026-02-28',
     airframeType: 'Quadcopter',
-    weight: 27.5,
+    weight: 28,
     maxWeight: 55,
     flightController: 'Pixhawk 6C',
     fcFirmware: 'ArduCopter 4.4.0',
     companionComputer: 'Raspberry Pi 4',
     companionOS: 'Ubuntu 22.04',
-    primaryRadio: 'LTE',
-    backupRadio: 'RF 900MHz',
-    location: 'Hangar A',
-    notes: 'Primary survey aircraft',
-    statusHistory: [
-      { status: 'active', date: '2024-06-01', reason: 'Initial deployment' }
-    ]
-  },
-  {
-    id: 2,
-    name: 'HAWK-03',
-    status: 'active',
-    totalHours: 185.2,
-    maintenanceInterval: 200,
-    lastFlight: '2025-01-14',
-    airframeType: 'Hexacopter',
-    weight: 40,
-    maxWeight: 77,
-    flightController: 'Cube Orange',
-    fcFirmware: 'ArduCopter 4.3.7',
-    companionComputer: 'Jetson Nano',
-    companionOS: 'JetPack 4.6',
-    primaryRadio: 'Starlink',
+    primaryRadio: 'RF 900MHz',
     backupRadio: 'LTE',
-    location: 'Field Site 1',
-    notes: 'Heavy lift platform',
+    location: 'Maintenance Bay',
+    notes: 'Overdue - motor bearings worn, prop damage from bird strike',
+    flightLog: [
+      { date: '2025-01-20', hours: 6.0 }, { date: '2025-02-15', hours: 8.0 }, { date: '2025-03-22', hours: 10.5 },
+      { date: '2025-04-18', hours: 9.0 }, { date: '2025-05-25', hours: 12.0 }, { date: '2025-06-10', hours: 7.5 },
+      { date: '2025-07-15', hours: 11.0 }, { date: '2025-08-20', hours: 8.3 }, { date: '2025-09-28', hours: 9.0 },
+      { date: '2025-10-15', hours: 13.0 }, { date: '2025-11-22', hours: 10.0 }, { date: '2025-12-18', hours: 7.0 },
+      { date: '2026-01-25', hours: 16.0 }, { date: '2026-02-28', hours: 14.0 }
+    ],
     statusHistory: [
-      { status: 'active', date: '2024-08-15', reason: 'Returned from maintenance' },
-      { status: 'maintenance', date: '2024-08-01', reason: 'Gimbal replacement' },
-      { status: 'active', date: '2024-03-01', reason: 'Initial deployment' }
+      { status: 'maintenance', date: '2026-03-01', reason: 'Bird strike damage - motor bearing replacement' },
+      { status: 'active', date: '2025-06-15', reason: 'Returned from annual inspection' },
+      { status: 'maintenance', date: '2025-06-01', reason: 'Annual inspection' },
+      { status: 'active', date: '2025-01-10', reason: 'Added to fleet' }
     ]
   },
   {
-    id: 3,
-    name: 'EAGLE-02',
-    status: 'maintenance',
-    totalHours: 203.0,
+    id: 1004,
+    name: 'RAVEN-05',
+    status: 'active',
+    totalHours: 92.0,
     maintenanceInterval: 200,
-    lastFlight: '2025-01-10',
-    airframeType: 'Fixed Wing',
-    weight: 17.6,
-    maxWeight: 33,
-    flightController: 'Pixhawk 4',
-    fcFirmware: 'ArduPlane 4.3.0',
+    lastFlight: '2026-03-10',
+    airframeType: 'Quadcopter',
+    weight: 15,
+    maxWeight: 25,
+    flightController: 'DJI N3',
+    fcFirmware: 'v2.0.1',
     companionComputer: 'None',
     companionOS: 'N/A',
-    primaryRadio: 'RF 2.4GHz',
+    primaryRadio: 'LTE',
     backupRadio: 'None',
-    location: 'Maintenance Bay',
-    notes: 'Needs motor replacement',
+    location: 'Field Site 2',
+    notes: 'Survey and inspection',
+    flightLog: [
+      { date: '2025-04-10', hours: 3.0 }, { date: '2025-05-15', hours: 4.5 }, { date: '2025-06-20', hours: 6.0 },
+      { date: '2025-07-25', hours: 5.0 }, { date: '2025-08-30', hours: 7.5 }, { date: '2025-09-18', hours: 4.0 },
+      { date: '2025-10-22', hours: 6.5 }, { date: '2025-11-10', hours: 5.0 }, { date: '2025-12-15', hours: 3.5 },
+      { date: '2026-01-20', hours: 8.0 }, { date: '2026-02-15', hours: 10.0 }, { date: '2026-03-10', hours: 7.0 }
+    ],
     statusHistory: [
-      { status: 'maintenance', date: '2025-01-10', reason: 'Motor failure - needs replacement' },
-      { status: 'active', date: '2024-09-01', reason: 'Annual inspection complete' },
-      { status: 'maintenance', date: '2024-08-15', reason: 'Annual inspection' },
-      { status: 'active', date: '2024-01-15', reason: 'Initial deployment' }
+      { status: 'active', date: '2025-04-01', reason: 'Added to fleet' }
     ]
   },
   {
-    id: 4,
-    name: 'FALCON-04',
+    id: 1005,
+    name: 'FALCON-12',
+    status: 'grounded',
+    totalHours: 156.8,
+    maintenanceInterval: 150,
+    lastFlight: '2026-01-18',
+    airframeType: 'Fixed Wing',
+    weight: 18,
+    maxWeight: 35,
+    flightController: 'Pixhawk 4',
+    fcFirmware: 'ArduPlane 4.3.0',
+    companionComputer: 'Jetson Nano',
+    companionOS: 'JetPack 5.1',
+    primaryRadio: 'RF 2.4GHz',
+    backupRadio: 'RF 900MHz',
+    location: 'Storage',
+    notes: 'ESC failure during flight - awaiting replacement board',
+    flightLog: [
+      { date: '2025-02-05', hours: 5.0 }, { date: '2025-03-12', hours: 8.0 }, { date: '2025-04-20', hours: 10.0 },
+      { date: '2025-05-18', hours: 12.0 }, { date: '2025-06-25', hours: 9.0 }, { date: '2025-07-30', hours: 11.0 },
+      { date: '2025-08-22', hours: 8.5 }, { date: '2025-09-15', hours: 7.0 }, { date: '2025-10-10', hours: 10.3 },
+      { date: '2025-11-28', hours: 6.0 }, { date: '2025-12-20', hours: 4.0 }, { date: '2026-01-18', hours: 8.0 }
+    ],
+    statusHistory: [
+      { status: 'grounded', date: '2026-01-18', reason: 'ESC failure in flight - emergency landing' },
+      { status: 'active', date: '2025-10-05', reason: 'Returned from 100hr service' },
+      { status: 'maintenance', date: '2025-09-20', reason: '100hr scheduled maintenance' },
+      { status: 'active', date: '2025-02-01', reason: 'Added to fleet' }
+    ]
+  },
+  {
+    id: 1006,
+    name: 'OSPREY-08',
+    status: 'active',
+    totalHours: 78.5,
+    maintenanceInterval: 200,
+    lastFlight: '2026-03-14',
+    airframeType: 'VTOL',
+    weight: 52,
+    maxWeight: 88,
+    flightController: 'Cube Orange',
+    fcFirmware: 'ArduPlane 4.4.0',
+    companionComputer: 'Jetson Xavier',
+    companionOS: 'JetPack 5.0',
+    primaryRadio: 'Starlink',
+    backupRadio: 'LTE',
+    location: 'Hangar B',
+    notes: 'Long-range delivery platform',
+    flightLog: [
+      { date: '2025-06-15', hours: 3.0 }, { date: '2025-07-20', hours: 5.5 }, { date: '2025-08-10', hours: 4.0 },
+      { date: '2025-09-25', hours: 6.0 }, { date: '2025-10-30', hours: 8.0 }, { date: '2025-11-18', hours: 5.5 },
+      { date: '2025-12-12', hours: 4.0 }, { date: '2026-01-28', hours: 9.0 }, { date: '2026-02-20', hours: 12.0 },
+      { date: '2026-03-14', hours: 8.5 }
+    ],
+    statusHistory: [
+      { status: 'active', date: '2025-06-10', reason: 'Added to fleet' }
+    ]
+  },
+  {
+    id: 1007,
+    name: 'EAGLE-15',
     status: 'active',
     totalHours: 45.0,
     maintenanceInterval: 200,
-    lastFlight: '2025-01-15',
+    lastFlight: '2026-03-08',
     airframeType: 'Quadcopter',
     weight: 12,
     maxWeight: 22,
-    flightController: 'DJI N3',
-    fcFirmware: 'v1.7.6',
-    companionComputer: 'Intel NUC',
-    companionOS: 'Windows 11',
+    flightController: 'Pixhawk 6C',
+    fcFirmware: 'ArduCopter 4.5.1',
+    companionComputer: 'None',
+    companionOS: 'N/A',
     primaryRadio: 'LTE',
-    backupRadio: 'Starlink',
-    location: 'Hangar A',
-    notes: 'Inspection drone',
+    backupRadio: 'None',
+    location: 'Field Site 1',
+    notes: 'Light inspection drone - newest addition',
+    flightLog: [
+      { date: '2025-10-15', hours: 3.0 }, { date: '2025-11-10', hours: 4.5 }, { date: '2025-12-05', hours: 5.0 },
+      { date: '2026-01-12', hours: 6.0 }, { date: '2026-02-08', hours: 8.5 }, { date: '2026-03-08', hours: 6.0 }
+    ],
     statusHistory: [
-      { status: 'active', date: '2024-10-01', reason: 'Initial deployment' }
+      { status: 'active', date: '2025-10-01', reason: 'Added to fleet' }
     ]
   },
   {
-    id: 5,
-    name: 'OSPREY-05',
-    status: 'grounded',
-    totalHours: 89.3,
+    id: 1008,
+    name: 'VIPER-03',
+    status: 'active',
+    totalHours: 168.0,
     maintenanceInterval: 200,
-    lastFlight: '2024-12-20',
-    airframeType: 'VTOL',
-    weight: 48.5,
-    maxWeight: 88,
-    flightController: 'Cube Black',
-    fcFirmware: 'ArduPlane 4.2.0',
+    lastFlight: '2026-03-16',
+    airframeType: 'Octocopter',
+    weight: 65,
+    maxWeight: 110,
+    flightController: 'Cube Orange',
+    fcFirmware: 'ArduCopter 4.5.1',
     companionComputer: 'Jetson Xavier',
     companionOS: 'JetPack 5.0',
+    primaryRadio: 'Starlink',
+    backupRadio: 'RF 900MHz',
+    location: 'Hangar A',
+    notes: 'Heavy lift - approaching maintenance soon',
+    flightLog: [
+      { date: '2025-01-08', hours: 5.0 }, { date: '2025-02-12', hours: 7.0 }, { date: '2025-03-18', hours: 9.5 },
+      { date: '2025-04-22', hours: 8.0 }, { date: '2025-05-15', hours: 10.0 }, { date: '2025-06-20', hours: 12.0 },
+      { date: '2025-07-28', hours: 11.0 }, { date: '2025-08-18', hours: 9.0 }, { date: '2025-09-22', hours: 8.5 },
+      { date: '2025-10-15', hours: 10.0 }, { date: '2025-11-20', hours: 7.0 }, { date: '2025-12-10', hours: 6.0 },
+      { date: '2026-01-18', hours: 15.0 }, { date: '2026-02-22', hours: 16.0 }, { date: '2026-03-16', hours: 12.0 }
+    ],
+    statusHistory: [
+      { status: 'active', date: '2025-01-05', reason: 'Added to fleet' }
+    ]
+  },
+  {
+    id: 1009,
+    name: 'SHADOW-07',
+    status: 'maintenance',
+    totalHours: 110.0,
+    maintenanceInterval: 100,
+    lastFlight: '2026-02-10',
+    airframeType: 'Quadcopter',
+    weight: 20,
+    maxWeight: 35,
+    flightController: 'Pixhawk 6C',
+    fcFirmware: 'ArduCopter 4.4.0',
+    companionComputer: 'Raspberry Pi 4',
+    companionOS: 'Ubuntu 22.04',
     primaryRadio: 'RF 900MHz',
     backupRadio: 'LTE',
-    location: 'Storage',
-    notes: 'Awaiting parts - ESC failure',
+    location: 'Maintenance Bay',
+    notes: 'Overdue maintenance - 10hrs past interval',
+    flightLog: [
+      { date: '2025-05-10', hours: 4.0 }, { date: '2025-06-15', hours: 6.0 }, { date: '2025-07-20', hours: 8.0 },
+      { date: '2025-08-25', hours: 7.0 }, { date: '2025-09-18', hours: 9.0 }, { date: '2025-10-22', hours: 10.0 },
+      { date: '2025-11-15', hours: 8.0 }, { date: '2025-12-10', hours: 6.0 }, { date: '2026-01-15', hours: 12.0 },
+      { date: '2026-02-10', hours: 10.0 }
+    ],
     statusHistory: [
-      { status: 'grounded', date: '2024-12-20', reason: 'ESC failure - awaiting parts' },
-      { status: 'active', date: '2024-07-01', reason: 'Returned to service' },
-      { status: 'maintenance', date: '2024-06-15', reason: 'Firmware upgrade' },
-      { status: 'active', date: '2024-04-01', reason: 'Initial deployment' }
+      { status: 'maintenance', date: '2026-02-15', reason: 'Overdue - full teardown inspection' },
+      { status: 'active', date: '2025-09-01', reason: 'Returned from 50hr check' },
+      { status: 'maintenance', date: '2025-08-28', reason: '50hr scheduled check' },
+      { status: 'active', date: '2025-05-01', reason: 'Added to fleet' }
+    ]
+  },
+  {
+    id: 1010,
+    name: 'TITAN-20',
+    status: 'active',
+    totalHours: 22.0,
+    maintenanceInterval: 200,
+    lastFlight: '2026-03-10',
+    airframeType: 'Hexacopter',
+    weight: 38,
+    maxWeight: 66,
+    flightController: 'Pixhawk 6C',
+    fcFirmware: 'ArduCopter 4.5.1',
+    companionComputer: 'Raspberry Pi 5',
+    companionOS: 'Ubuntu 24.04',
+    primaryRadio: 'LTE',
+    backupRadio: 'Starlink',
+    location: 'Hangar B',
+    notes: 'Newest platform - low hours, breaking in',
+    flightLog: [
+      { date: '2026-01-20', hours: 3.0 }, { date: '2026-02-05', hours: 5.0 }, { date: '2026-02-25', hours: 7.0 },
+      { date: '2026-03-10', hours: 7.0 }
+    ],
+    statusHistory: [
+      { status: 'active', date: '2026-01-15', reason: 'Added to fleet' }
     ]
   }
 ];
@@ -215,11 +388,17 @@ const daysSinceStatusChange = (aircraft) => {
   return daysBetween(history[0].date, today);
 };
 
-// Helper: Get date aircraft was added to fleet (oldest statusHistory entry)
+// Helper: Get date aircraft was added to fleet (earliest known date across all data)
 const getAddedDate = (aircraft) => {
+  const dates = [];
   const history = aircraft.statusHistory || [];
-  if (history.length === 0) return aircraft.lastFlight || '2024-01-01';
-  return history[history.length - 1].date; // oldest entry (history is newest-first)
+  if (history.length > 0) dates.push(history[history.length - 1].date);
+  if (aircraft.lastFlight) dates.push(aircraft.lastFlight);
+  if (aircraft.flightLog) {
+    aircraft.flightLog.forEach(entry => { if (entry.date) dates.push(entry.date); });
+  }
+  if (dates.length === 0) return '2024-01-01';
+  return dates.sort()[0]; // earliest date
 };
 
 // Helper: Filter aircraft that existed during a period
